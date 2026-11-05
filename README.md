@@ -15,21 +15,30 @@ support
 
 ## Quickstart
 
-1. Add tinyeval to your repo. It's one file, so commit it.
-   ```sh
-   curl -fsSLo tinyeval https://raw.githubusercontent.com/evalship-hq/tinyeval/v0.1.0/tinyeval && chmod +x tinyeval
-   ```
-2. Write `evals/support.sh`:
-   ```bash
-   ask() { python3 bot.py "$1"; }   # your AI call: input in, reply out
+Ask your coding agent:
 
-   test_case "refund after the window" "Can I return shoes that arrived 40 days ago?"
-     contains "30 days"
-     judge "Says a refund isn't possible anymore, politely"
-   ```
-3. Run `./tinyeval`.
+```
+Set up evals with https://tinyeval.com/setup.md
+```
 
-tinyeval needs bash 3.2 or later, which macOS, Linux and Git for Windows come with. `judge` also uses curl, which they have too.
+Or set it up yourself. In your repo's root:
+
+```sh
+curl -fsSL https://tinyeval.com/install.sh | sh
+./tinyeval
+```
+
+[install.sh](install.sh) adds `./tinyeval` (commit it), `evals/example.sh` and an `eval-results.json` line in `.gitignore`. Nothing else. Then replace `ask` in the example with your AI call:
+
+```bash
+ask() { python3 bot.py "$1"; }   # your AI call: input in, reply out
+
+test_case "refund after the window" "Can I return shoes that arrived 40 days ago?"
+  contains "30 days"
+  judge "Says a refund isn't possible anymore, politely"
+```
+
+tinyeval needs bash 3.2 or later, which macOS, most Linux and Git for Windows come with (on Alpine, `apk add bash`). `judge` also uses curl.
 
 ## Writing evals
 
@@ -89,26 +98,26 @@ See [examples/support.sh](examples/support.sh) for a suite whose AI call is a Ru
 
 `TINYEVAL_JUDGE_MODEL` picks another model. Any OpenAI-compatible API works with `TINYEVAL_JUDGE_URL` and `TINYEVAL_JUDGE_KEY`, such as Ollama at `http://localhost:11434/v1`. Or set `TINYEVAL_JUDGE` to a command that reads the prompt on stdin, like `claude -p`.
 
-## Noise
+## Options
 
-The same input can get a different reply each time. Run each test case more than once:
+| Flag | Does |
+|---|---|
+| `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed |
+| `-j 4` | runs 4 test cases at once; output stays in file order |
+| `-t 60` | stops an AI call after 60 seconds (default: 300) |
+| `-k refund` | runs only the test cases whose name contains "refund" |
+| `-o file` | writes the results there instead of `eval-results.json` |
 
-```sh
-./tinyeval -n 3
-```
-
-A test case passes when at least half its runs pass. One that fails some of its runs shows `~`.
+The same input can get a different reply each time, so `-n 3` is worth its cost.
 
 ## Since the last run
 
-tinyeval writes `eval-results.json` and compares each run with the one before:
+tinyeval writes `eval-results.json` and compares each run with the one before it:
 
 ```
 Since the last run
   ✗ support › missing package fails now
 ```
-
-Add `eval-results.json` to your `.gitignore`.
 
 ## In CI
 
@@ -122,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: ./tinyeval -n 3
+      - run: ./tinyeval -n 3 -j 4
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
@@ -142,7 +151,7 @@ jobs:
 A fresh CI run has no last run to compare with. [evalship](https://evalship.com) reads `eval-results.json` as is. It compares each pull request with main, tells flaky evals from real drops and comments on the pull request. Connect your repo on [evalship.com](https://evalship.com), then upload the file:
 
 ```yaml
-      - run: ./tinyeval -n 3
+      - run: ./tinyeval -n 3 -j 4
         continue-on-error: true   # evalship's check is the gate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

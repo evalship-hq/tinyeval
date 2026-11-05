@@ -2,21 +2,27 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.1.0
-_te_usage="Usage: tinyeval [-n runs] [-o results.json] [eval files...]
+_te_version=0.2.0
+_te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
 
 Runs every test case in the eval files (default: evals/*.sh) and writes the
 results to eval-results.json. Exits 1 when an eval fails.
 
-  -n runs   run each eval this many times; it passes when at least half pass
-  -o file   where to write the results (default: eval-results.json)
-  -v        print the version"
+  -n runs     run each test case this many times; it passes when at least half pass
+  -j jobs     run this many test cases at once (default: 1)
+  -t seconds  stop an AI call that takes longer (default: 300)
+  -k text     run only the test cases whose name contains text
+  -o file     where to write the results (default: eval-results.json)
+  -v          print the version"
 
-_te_runs=1
+_te_runs=1 _te_jobs=1 _te_timeout=300 _te_only=''
 _te_results=eval-results.json
-while getopts n:o:vh _te_opt; do
+while getopts n:j:t:k:o:vh _te_opt; do
   case $_te_opt in
     n) _te_runs=$OPTARG ;;
+    j) _te_jobs=$OPTARG ;;
+    t) _te_timeout=$OPTARG ;;
+    k) _te_only=$OPTARG ;;
     o) _te_results=$OPTARG ;;
     v) echo "tinyeval $_te_version"; exit 0 ;;
     h) echo "$_te_usage"; exit 0 ;;
@@ -24,7 +30,9 @@ while getopts n:o:vh _te_opt; do
   esac
 done
 shift $((OPTIND - 1))
-case $_te_runs in '' | *[!0-9]* | 0) echo "tinyeval: -n takes a number of runs, 1 or more" >&2; exit 2 ;; esac
+for _te_opt in "-n $_te_runs" "-j $_te_jobs" "-t $_te_timeout"; do
+  case ${_te_opt#-? } in '' | *[!0-9]* | 0) echo "tinyeval: ${_te_opt%% *} takes a whole number, 1 or more" >&2; exit 2 ;; esac
+done
 [ $# -gt 0 ] || set -- evals/*.sh
 for _te_f in "$@"; do
   [ -f "$_te_f" ] || { echo "tinyeval: no eval file at $_te_f. Create one: https://github.com/evalship-hq/tinyeval#quickstart" >&2; exit 2; }
@@ -34,6 +42,8 @@ _te_tmp=$(mktemp -d) || exit 2
 # Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
 if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
 trap 'rm -rf "$_te_tmp"' EXIT
+# Background test cases ignore Ctrl-C, as bash's background jobs do, so stop the whole process group.
+trap 'trap "" TERM; kill -TERM 0 2>/dev/null; exit 130' INT TERM
 if [ -t 1 ]; then _te_g=$'\033[32m' _te_r=$'\033[31m' _te_y=$'\033[33m' _te_d=$'\033[2m' _te_0=$'\033[0m'; fi
 _te_tab=$'\t'
 
@@ -63,15 +73,16 @@ _te_add() {
 
 _te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
 
+# Whether $1 contains $2, ignoring case.
 _te_has() {
   shopt -s nocasematch
-  [[ $output == *"$1"* ]]
+  [[ $1 == *"$2"* ]]
   local found=$?
   shopt -u nocasematch
   return $found
 }
-_te_contains() { _te_has "$1" || _te_fail "expected to contain \"$1\""; }
-_te_not_contains() { ! _te_has "$1" || _te_fail "expected not to contain \"$1\""; }
+_te_contains() { _te_has "$output" "$1" || _te_fail "expected to contain \"$1\""; }
+_te_not_contains() { ! _te_has "$output" "$1" || _te_fail "expected not to contain \"$1\""; }
 _te_matches() { [[ $output =~ $1 ]] || _te_fail "expected to match /$1/"; }
 _te_equals() { [ "$output" = "$1" ] || _te_fail "expected exactly \"$1\""; }
 _te_expect() {
@@ -140,9 +151,9 @@ _te_ask_judge() {
   [ -n "$model" ] || { echo "set TINYEVAL_JUDGE_MODEL to the model the judge should use"; return 1; }
   command -v curl >/dev/null || { echo "judge needs curl, or TINYEVAL_JUDGE set to a command"; return 1; }
   # The key goes in a header file, not the command line, so it doesn't show in ps.
-  (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_tmp/auth")
+  (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_dir/auth")
   res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$(_te_json "$model")" "$(_te_json "$1")" |
-    curl -sS --max-time 120 "${url%/}/chat/completions" -H "@$_te_tmp/auth" -H 'Content-Type: application/json' --data-binary @- 2>&1) ||
+    curl -sS --max-time 120 "${url%/}/chat/completions" -H "@$_te_dir/auth" -H 'Content-Type: application/json' --data-binary @- 2>&1) ||
     { echo "$res"; return 1; }
   content=$(printf '%s' "$res" | _te_json_get content)
   if [ -z "$content" ]; then
@@ -159,22 +170,75 @@ _te_now() {
   else perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000' 2>/dev/null || echo $(($(date +%s) * 1000)); fi
 }
 
-# Runs the test case test_case started: calls ask, then every assertion, once per run.
+# Starts the test case test_case set up, in the background. Up to -j run at once; they print in file order.
 _te_run_case() {
   [ -n "$_te_name" ] || return 0
+  if [ -z "$_te_only" ] || _te_has "$_te_name" "$_te_only"; then
+    _te_n=$((_te_n + 1))
+    local dir="$_te_tmp/$_te_i.$_te_n"
+    mkdir "$dir"
+    _te_case "$dir" >"$dir/printed" &
+    _te_pids+=("$!")
+    _te_dirs+=("$dir")
+    while [ ${#_te_pids[@]} -ge "$_te_jobs" ]; do _te_collect; done
+  fi
+  _te_name=
+}
+
+# Waits for the oldest running test case, then prints it and keeps its results.
+_te_collect() {
+  wait "${_te_pids[0]}"
+  [ -n "$_te_header" ] || { echo "$_te_suite"; _te_header=1; }
+  cat "${_te_dirs[0]}/printed"
+  cat "${_te_dirs[0]}/results.jsonl" >>"$_te_tmp/results.jsonl"
+  _te_pids=("${_te_pids[@]:1}")
+  _te_dirs=("${_te_dirs[@]:1}")
+}
+
+# Runs ask with the input, its reply going to $1/out. Writes $1/timed-out when -t stops it.
+# shortcut: a timeout stops ask and its direct children; deeper ones run on, but no longer hold up tinyeval.
+_te_call_ask() {
+  local dir=$1 pid watchdog code
+  ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" &
+  pid=$!
+  (
+    trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
+    sleep "$_te_timeout" &
+    sleeper=$!
+    wait "$sleeper"
+    : >"$dir/timed-out"
+    pkill -TERM -P "$pid" 2>/dev/null
+    kill -TERM "$pid" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$pid"
+  code=$?
+  kill "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return $code
+}
+
+# Runs one test case: ask, then every assertion, once per run. Prints its line; results go to $1/results.jsonl.
+_te_case() {
+  _te_dir=$1
   local i=1 passes=0 started ms code a passed failure shown_failures shown_output
   local suite key file
   suite=$(_te_json "$_te_suite") key=$(_te_json "$_te_name") file=$(_te_json "$_te_file")
+  : >"$_te_dir/results.jsonl"
   while [ $i -le "$_te_runs" ]; do
     _te_failures='' output=''
     started=$(_te_now)
+    rm -f "$_te_dir/timed-out"
     if ! type ask >/dev/null 2>&1; then
       _te_fail "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
     else
-      output=$(ask "$input" <<<"$input" 2>"$_te_tmp/ask.err")
+      _te_call_ask "$_te_dir"
       code=$?
-      if [ $code -ne 0 ]; then
-        _te_fail "ask failed (exit $code): $(tail -n 3 "$_te_tmp/ask.err" | tr '\n' ' ')"
+      output=$(cat "$_te_dir/out")
+      if [ -f "$_te_dir/timed-out" ]; then
+        _te_fail "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
+      elif [ $code -ne 0 ]; then
+        _te_fail "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
       else
         for a in "${_te_asserts[@]}"; do eval "$a"; done
       fi
@@ -186,7 +250,7 @@ _te_run_case() {
     fi
     # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
     printf '{"suite":%s,"key":%s,"passed":%s,"file":%s,"duration_ms":%s,"input":%s,"output":%s%s}\n' \
-      "$suite" "$key" "$passed" "$file" "$ms" "$(_te_json "$input")" "$(_te_json "$output")" "$failure" >>"$_te_tmp/results.jsonl"
+      "$suite" "$key" "$passed" "$file" "$ms" "$(_te_json "$input")" "$(_te_json "$output")" "$failure" >>"$_te_dir/results.jsonl"
     i=$((i + 1))
   done
 
@@ -199,7 +263,6 @@ _te_run_case() {
     printf '%s\n' "$shown_failures" | sed 's/^/      /'
     printf '      %sreply: %s%s\n' "$_te_d" "$(printf '%s' "$shown_output" | tr '\n' ' ' | cut -c 1-200)" "$_te_0"
   fi
-  _te_name=
 }
 
 # suite<TAB>key<TAB>true|false per eval line of a results file (or results.jsonl) on stdin.
@@ -216,17 +279,30 @@ _te_majority() {
 # --- run ------------------------------------------------------------------------
 
 : >"$_te_tmp/results.jsonl"
+_te_i=0
 for _te_f in "$@"; do
+  _te_i=$((_te_i + 1))
   _te_suite=$(basename "$_te_f" .sh)
-  echo "$_te_suite"
-  # A subshell per file, so one file's ask doesn't leak into the next.
-  # shellcheck source=/dev/null
-  (_te_name=''; . "$_te_f"; _te_run_case) </dev/null
+  # A subshell per file, so one file's ask doesn't leak into the next. In the background, because bash runs
+  # the INT/TERM trap during wait but not while a foreground command runs.
+  (
+    _te_name='' _te_n=0 _te_header=''
+    _te_pids=()
+    _te_dirs=()
+    # shellcheck source=/dev/null
+    . "$_te_f"
+    _te_run_case
+    while [ ${#_te_pids[@]} -gt 0 ]; do _te_collect; done
+  ) </dev/null &
+  wait $!
 done
 
 _te_statuses <"$_te_tmp/results.jsonl" | _te_majority >"$_te_tmp/now"
 _te_total=$(wc -l <"$_te_tmp/now" | tr -d ' ')
-[ "$_te_total" -gt 0 ] || { echo "tinyeval: no test cases in $*" >&2; exit 2; }
+if [ "$_te_total" -eq 0 ]; then
+  if [ -n "$_te_only" ]; then echo "tinyeval: no test case name contains \"$_te_only\"" >&2; else echo "tinyeval: no test cases in $*" >&2; fi
+  exit 2
+fi
 
 if [ -f "$_te_results" ]; then
   _te_statuses <"$_te_results" | _te_majority >"$_te_tmp/was"
