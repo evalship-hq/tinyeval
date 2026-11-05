@@ -6,14 +6,15 @@ You're adding evals for this repo's AI features with tinyeval, a one-file bash r
 
 ## 1. Install
 
-In the repo root, run:
+In the repo root, download the runner and check that it runs:
 
 ```sh
-curl -fsSL https://tinyeval.com/install.sh | sh
-./tinyeval
+curl -fsSLo tinyeval https://raw.githubusercontent.com/evalship-hq/tinyeval/v0.2.0/tinyeval
+chmod +x tinyeval
+./tinyeval -v
 ```
 
-The installer adds `./tinyeval`, `evals/example.sh` and an `eval-results.json` line in `.gitignore`. The example should pass. On Windows, run it in Git Bash.
+`./tinyeval` is one bash file that needs only bash and curl. It gets committed with the code. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
 
 ## 2. Find the AI features
 
@@ -21,7 +22,7 @@ Search the code for LLM calls: SDK clients (openai, anthropic, google-genai, rub
 
 ## 3. Write ask
 
-Create `evals/<feature>.sh` and delete `evals/example.sh`. Define `ask` so it runs the real code path, the function production calls, with the input as `$1` (and on stdin) and the reply on stdout:
+Create `evals/<feature>.sh`. Define `ask` so it runs the real code path, the function production calls, with the input as `$1` (and on stdin) and the reply on stdout:
 
 ```bash
 ask() { bin/rails runner 'puts Summarizer.call(STDIN.read)'; }
