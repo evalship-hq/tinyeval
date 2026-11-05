@@ -77,8 +77,9 @@ ok "-t stops a slow AI call" '[ $code -eq 1 ] && [[ $out == *"ask took longer th
 ok "-t prints no job notices" '[[ $out != *Terminated* ]] && [[ $out == *"reply: (empty)"* ]]'
 
 start=$SECONDS
-out=$(./tinyeval -j 4 -o "$tmp/par.json" test/fixtures/parallel.sh); code=$?
+out=$(./tinyeval -j 4 -t 291 -o "$tmp/par.json" test/fixtures/parallel.sh); code=$?
 ok "-j 4 runs four 1s test cases at once" '[ $code -eq 0 ] && [ $((SECONDS - start)) -lt 3 ]'
+if command -v pgrep >/dev/null; then ok "finished AI calls leave no timer running" '! pgrep -f "sleep 291" >/dev/null'; fi
 ok "-j keeps file order" '[[ $out == *one*two*three*four* ]] && [ "$(jqr -r "[.evals[].key] | join(\",\")" "$tmp/par.json" | tr -d "\r")" = "one,two,three,four" ]'
 
 # TERM (what Ctrl-C becomes) stops tinyeval and the AI calls it started. set -m gives it its own process group.

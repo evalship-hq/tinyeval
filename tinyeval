@@ -43,7 +43,16 @@ _te_tmp=$(mktemp -d) || exit 2
 if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
 trap 'rm -rf "$_te_tmp"' EXIT
 # Background test cases ignore Ctrl-C, as bash's background jobs do, so stop the whole process group.
-trap 'trap "" TERM; kill -TERM 0 2>/dev/null; exit 130' INT TERM
+_te_stop() {
+  trap '' TERM
+  # Git Bash: native programs like python.exe ignore signals, so end each child's Windows process tree.
+  if [ -r /proc/$$/winpid ]; then
+    for _te_p in $(ps | awk -v me=$$ '$2 == me { print $4 }'); do taskkill //F //T //PID "$_te_p" >/dev/null 2>&1; done
+  fi
+  kill -TERM 0 2>/dev/null
+  exit 130
+}
+trap _te_stop INT TERM
 if [ -t 1 ]; then _te_g=$'\033[32m' _te_r=$'\033[31m' _te_y=$'\033[33m' _te_d=$'\033[2m' _te_0=$'\033[0m'; fi
 _te_tab=$'\t'
 
@@ -202,11 +211,13 @@ _te_call_ask() {
   ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" &
   pid=$!
   (
-    trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
+    # jobs, not $!: on Git Bash the stop often lands before $! is saved, which left the sleep running.
+    trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
     sleep "$_te_timeout" &
-    sleeper=$!
-    wait "$sleeper"
+    wait $!
     : >"$dir/timed-out"
+    # Git Bash: end the Windows process tree, which takes native programs like python.exe with it.
+    if [ -r "/proc/$pid/winpid" ]; then taskkill //F //T //PID "$(cat "/proc/$pid/winpid")"; fi
     pkill -TERM -P "$pid" 2>/dev/null
     kill -TERM "$pid" 2>/dev/null
   ) >/dev/null 2>&1 &
