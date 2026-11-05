@@ -228,10 +228,11 @@ _te_ask_judge() {
   # The key goes in a header file, not the command line, so it doesn't show in ps.
   (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_dir/auth")
   # --retry waits out 429 and 5xx replies. -o, because on stdout each retry's reply would add to the last one.
-  res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$(_te_json "$model")" "$(_te_json "$1")" |
+  if ! res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$(_te_json "$model")" "$(_te_json "$1")" |
     curl -sS --retry 3 --max-time 120 -o "$_te_dir/judge.json" "${url%/}/chat/completions" -H "@$_te_dir/auth" \
-      -H 'Content-Type: application/json' --data-binary @- 2>&1) && res=$(cat "$_te_dir/judge.json") ||
-    { echo "$res"; return 1; }
+      -H 'Content-Type: application/json' --data-binary @- 2>&1) || ! res=$(cat "$_te_dir/judge.json"); then
+    echo "$res"; return 1
+  fi
   content=$(printf '%s' "$res" | _te_json_get content)
   if [ -z "$content" ]; then
     content=$(printf '%s' "$res" | _te_json_get message)
@@ -325,7 +326,7 @@ _te_case() {
       fi
     fi
     ms=$(($(_te_now) - started))
-    passed=true failure= couldnt=
+    passed=true failure='' couldnt=''
     if [ -z "$_te_failures" ]; then passes=$((passes + 1)); else
       passed=false failure=",\"failure\":$(_te_json "$_te_failures")" shown_failures=$_te_failures shown_output=$output
       # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
