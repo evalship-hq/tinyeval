@@ -156,7 +156,7 @@ jobs:
 
 ## Other eval tools
 
-We set up the same suite as [examples/support.sh](examples/support.sh) in promptfoo and Braintrust: 2 test cases, 3 runs each, 4 at once, with Claude Haiku 5.5 as the AI call and the judge. Each was installed from a cold cache on an M2 MacBook on 2026-11-05. [bench/](bench/) has the setups and the script.
+We set up the same suite as [examples/support.sh](examples/support.sh) in promptfoo and Braintrust: 2 test cases, 3 runs each, 4 at once, with the same AI call and Claude Haiku 5.5 as the judge. Each was installed from a cold cache on an M2 MacBook on 2026-11-05. [bench/](bench/) has the setups and the script.
 
 | | tinyeval 0.3.0 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
 |---|---|---|---|
@@ -165,7 +165,7 @@ We set up the same suite as [examples/support.sh](examples/support.sh) in prompt
 | Startup | 0.01 s | 0.8 s | 0.2 s |
 | Suite | 9 lines | 22 lines, plus a 1-line script | 30 lines |
 
-Runs took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
+With Haiku 5.5 answering too, runs took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
 
 Pick promptfoo for red teaming or comparing many providers side by side. Pick Braintrust for a hosted place to compare experiments and keep datasets. Raindrop is a hosted product that monitors AI features in production, not an eval runner, so it isn't in the table.
 

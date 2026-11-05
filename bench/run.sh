@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs tinyeval, promptfoo and Braintrust from cold caches into a temp folder, then runs the same support
-# suite in each: 2 test cases, 3 runs each, 4 at once, Claude Haiku 5.5 as AI call and judge.
+# suite in each: 2 test cases, 3 runs each, 4 at once, the example's AI call and Claude Haiku 5.5 as the judge.
 # Needs Node 22.22 or later (promptfoo refuses older ones), python3, ruby with the anthropic gem, and ANTHROPIC_API_KEY.
 set -eu
 cd "$(dirname "$0")"

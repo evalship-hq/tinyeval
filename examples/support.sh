@@ -3,7 +3,7 @@
 ask() { ruby examples/support.rb; }
 
 test_case "refund after the window" "Can I still return my shoes? They arrived 40 days ago."
-  contains "30 days"
+  matches "30[- ]day"   # "30 days" and "30-day window" are both right
   judge "Says a refund isn't possible anymore, politely"
 
 test_case "missing package" <<'IN'

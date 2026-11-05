@@ -2,7 +2,7 @@
 require "anthropic"
 
 message = Anthropic::Client.new.messages.create(
-  model: :"claude-haiku-5-5",
+  model: :"claude-opus-5-5", # judged by claude-haiku-5-5: a judge grading its own model's replies goes easy on them
   max_tokens: 16000,
   system_: [{ type: "text", text: File.read(File.join(__dir__, "support-prompt.md")) }],
   messages: [{ role: "user", content: $stdin.read }]

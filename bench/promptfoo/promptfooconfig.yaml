@@ -11,8 +11,8 @@ tests:
     vars:
       question: Can I still return my shoes? They arrived 40 days ago.
     assert:
-      - type: icontains
-        value: 30 days
+      - type: regex
+        value: 30[- ]day
       - type: llm-rubric
         value: Says a refund isn't possible anymore, politely
   - description: missing package

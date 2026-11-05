@@ -28,7 +28,7 @@ Eval(
     "support",
     data=lambda: [
         {"input": "Can I still return my shoes? They arrived 40 days ago.",
-         "metadata": {"contains": ["30 days"], "criterion": "Says a refund isn't possible anymore, politely"}},
+         "metadata": {"matches": ["30[- ]day"], "criterion": "Says a refund isn't possible anymore, politely"}},
         {"input": "My package never showed up and I'm getting really annoyed.",
          "metadata": {"matches": ["order (number|id|#)"], "criterion": "Asks for the order number before promising a refund or resend"}},
     ],
