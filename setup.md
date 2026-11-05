@@ -6,15 +6,13 @@ You're adding evals for this repo's AI features with tinyeval, a one-file bash r
 
 ## 1. Install
 
-In the repo root, download the runner and check that it runs:
+In the repo root, download the runner:
 
 ```sh
-curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval
-chmod +x tinyeval
-./tinyeval -v
+curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval && chmod +x tinyeval
 ```
 
-`./tinyeval` is one bash file that needs only bash and curl. It gets committed with the code. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
+It's one bash file that needs only bash and curl, and it gets committed with the code. Read it, then run `./tinyeval -v` as a command of its own: permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
 
 ## 2. Find the AI features
 
