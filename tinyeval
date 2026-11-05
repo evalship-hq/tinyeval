@@ -99,7 +99,8 @@ if [ -t 1 ] && [ -z "${CI-}" ]; then
   fi
 fi
 
-_te_tmp=$(mktemp -d) || exit 2
+# A coding agent's sandbox may not let it write to $TMPDIR, so the repo holds it then, until tinyeval exits.
+_te_tmp=$(mktemp -d 2>/dev/null || mktemp -d "$PWD/.tinyeval.XXXXXX") || exit 2
 # Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
 if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
 trap 'rm -rf "$_te_tmp"' EXIT

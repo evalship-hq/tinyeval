@@ -24,6 +24,9 @@ ok "basics: heredoc input kept" 'jqr -e ".evals[4].input == \"line one\nline two
 ok "basics: summary" '[[ $out == *"All 6 evals passed"* ]]'
 ok "basics: no jq call" '[[ $out != *"called jq"* ]]'
 
+out=$(TMPDIR=/nonexistent ./tinyeval -o "$tmp/notmp.json" test/fixtures/basics.sh 2>&1); code=$?
+ok "a TMPDIR it can't write to: works in the repo, leaves nothing" '[ $code -eq 0 ] && [[ $out == *"All 6 evals passed"* ]] && [ -z "$(ls -A | grep "^.tinyeval\\.")" ]'
+
 ./tinyeval -o "$tmp/esc.json" test/fixtures/escaping.sh >/dev/null; code=$?
 ok "escaping: passes" '[ $code -eq 0 ]'
 # tr: jq.exe on Windows writes CRLF.
