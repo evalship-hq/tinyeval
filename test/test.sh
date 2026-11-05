@@ -72,8 +72,9 @@ out=$(./tinyeval -k nothing -o "$tmp/k.json" test/fixtures/basics.sh 2>&1); code
 ok "-k with no match exits 2" '[ $code -eq 2 ] && [[ $out == *"no test case name contains \"nothing\""* ]]'
 
 start=$SECONDS
-out=$(./tinyeval -t 1 -o "$tmp/slow.json" test/fixtures/slow.sh); code=$?
+out=$(./tinyeval -t 1 -o "$tmp/slow.json" test/fixtures/slow.sh 2>&1); code=$?
 ok "-t stops a slow AI call" '[ $code -eq 1 ] && [[ $out == *"ask took longer than 1s"* ]] && [ $((SECONDS - start)) -lt 5 ]'
+ok "-t prints no job notices" '[[ $out != *Terminated* ]] && [[ $out == *"reply: (empty)"* ]]'
 
 start=$SECONDS
 out=$(./tinyeval -j 4 -o "$tmp/par.json" test/fixtures/parallel.sh); code=$?

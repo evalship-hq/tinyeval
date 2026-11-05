@@ -211,7 +211,7 @@ _te_call_ask() {
     kill -TERM "$pid" 2>/dev/null
   ) >/dev/null 2>&1 &
   watchdog=$!
-  wait "$pid"
+  wait "$pid" 2>/dev/null # no "Terminated" line when the watchdog stopped it
   code=$?
   kill "$watchdog" 2>/dev/null
   wait "$watchdog" 2>/dev/null
@@ -261,7 +261,7 @@ _te_case() {
   printf '  %s%s %s%s%s\n' "$mark" "$_te_0" "$_te_name" "$_te_d" "$count$_te_0"
   if [ -n "$shown_failures" ]; then
     printf '%s\n' "$shown_failures" | sed 's/^/      /'
-    printf '      %sreply: %s%s\n' "$_te_d" "$(printf '%s' "$shown_output" | tr '\n' ' ' | cut -c 1-200)" "$_te_0"
+    printf '      %sreply: %s%s\n' "$_te_d" "$(printf '%s' "${shown_output:-(empty)}" | tr '\n' ' ' | cut -c 1-200)" "$_te_0"
   fi
 }
 
