@@ -3,8 +3,8 @@ prompts: ['{{question}}']
 providers: ['exec: sh ask.sh']
 defaultTest:
   options:
-    # In promptfoo 0.125.1, llm-rubric sends temperature, which Claude Haiku 5.5 rejects with a 400. The same
-    # happens through Anthropic's OpenAI-compatible endpoint and with temperature: null (2026-11-05).
+    # In promptfoo 0.125.1, llm-rubric sends temperature, which Claude Haiku 5.5 rejects with a 400 (Opus 5.5 and
+    # Sonnet 5.5 work). https://github.com/promptfoo/promptfoo/issues/12163
     provider: anthropic:messages:claude-haiku-5-5
 tests:
   - description: refund after the window
