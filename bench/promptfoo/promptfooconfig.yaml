@@ -1,0 +1,25 @@
+# examples/support.sh in promptfoo: the same AI call (examples/support.rb) and the same judge model.
+prompts: ['{{question}}']
+providers: ['exec: sh ask.sh']
+defaultTest:
+  options:
+    # In promptfoo 0.125.1, llm-rubric sends temperature, which Claude Haiku 5.5 rejects with a 400. The same
+    # happens through Anthropic's OpenAI-compatible endpoint and with temperature: null (2026-11-05).
+    provider: anthropic:messages:claude-haiku-5-5
+tests:
+  - description: refund after the window
+    vars:
+      question: Can I still return my shoes? They arrived 40 days ago.
+    assert:
+      - type: icontains
+        value: 30 days
+      - type: llm-rubric
+        value: Says a refund isn't possible anymore, politely
+  - description: missing package
+    vars:
+      question: My package never showed up and I'm getting really annoyed.
+    assert:
+      - type: regex
+        value: order (number|id|#)
+      - type: llm-rubric
+        value: Asks for the order number before promising a refund or resend
