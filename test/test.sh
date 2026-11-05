@@ -35,6 +35,8 @@ ok "failing exits 1" '[ $code -eq 1 ]'
 ok "failing: contains reason" '[[ $out == *"expected to contain \"30 days\""* ]]'
 ok "failing: judge reason without verdict" '[[ $out == *"judge: It approves the refund."* ]]'
 ok "failing: ask error shown" '[[ $out == *"ask failed (exit 3): rate limited"* ]]'
+ok "failing: a broken AI call couldn't run" '[[ $out == *"! ask fails couldn'"'"'t run"* ]] && [[ $out == *"1 of 2 evals failed, 1 couldn'"'"'t run"* ]]'
+ok "failing: couldnt_run in results" 'jqr -e ".evals[1].metadata.couldnt_run | startswith(\"ask failed (exit 3)\")" "$tmp/failing.json" >/dev/null && jqr -e ".evals[0].metadata == null" "$tmp/failing.json" >/dev/null'
 ok "failing: failure in results" 'jqr -e ".evals[0].passed == false and (.evals[0].failure | contains(\"judge: It approves\"))" "$tmp/failing.json" >/dev/null'
 
 # The judge's API, faked with files: curl reads file:// URLs and ignores the request body.
@@ -50,11 +52,14 @@ out=$(judge); code=$?
 ok "judge API: PASS" '[ $code -eq 0 ]'
 api '{"error":{"message":"Invalid API key","code":401}}'
 out=$(judge); code=$?
-ok "judge API: error message shown" '[ $code -eq 1 ] && [[ $out == *"judge couldn'"'"'t run: Invalid API key"* ]]'
+ok "judge API: error message shown" '[ $code -eq 1 ] && [[ $out == *"judge couldn'"'"'t run: Invalid API key"* ]] && [[ $out == *"1 of 1 evals couldn'"'"'t run"* ]]'
 
 export COUNTER="$tmp/counter"
 out=$(./tinyeval -n 3 -o "$tmp/flaky.json" test/fixtures/flaky.sh); code=$?
 ok "flaky: 2 of 3 passes" '[ $code -eq 0 ] && [[ $out == *"mostly yes"*"2/3"* ]]'
+rm -f "$COUNTER"
+out=$(./tinyeval -n 3 -o "$tmp/broken.json" test/fixtures/broken.sh); code=$?
+ok "a run that couldn't run doesn't count toward -n" '[ $code -eq 0 ] && [[ $out == *"~ one run broke 1/2, 1 couldn'"'"'t run"* ]] && [[ $out == *"All 1 evals passed"* ]]'
 ok "flaky: one entry per run" '[ "$(jqr "[.evals[] | select(.passed)] | length" "$tmp/flaky.json")" -eq 2 ] && [ "$(jqr ".evals | length" "$tmp/flaky.json")" -eq 3 ]'
 
 out=$(./tinyeval -o "$tmp/typo.json" test/fixtures/typo.sh 2>/dev/null); code=$?
@@ -100,11 +105,11 @@ ok "TERM exits 130 right away" '[ $code -eq 130 ] && [ $((SECONDS - start)) -lt 
 sleep 1
 if command -v pgrep >/dev/null; then ok "TERM stops running AI calls" '! pgrep -f "sleep 37" >/dev/null'; fi
 
-# A previous run where "wrong reply" passed: line 2 of the file is its first eval.
-sed '2s/"passed":false/"passed":true/' "$tmp/failing.json" >"$tmp/prev.json"
+# A previous run where both test cases passed: line 2 of the file is its first eval.
+sed -e '2,3s/"passed":false/"passed":true/' -e '3s/,"metadata":{[^}]*}//' "$tmp/failing.json" >"$tmp/prev.json"
 out=$(./tinyeval -o "$tmp/prev.json" test/fixtures/failing.sh)
 ok "since last run: names the new failure" '[[ $out == *"Since the last run"*"failing › wrong reply fails now"* ]]'
-ok "since last run: unchanged evals left out" '[[ $out != *"ask fails fails now"* ]]'
+ok "since last run: a test case that couldn't run isn't a new failure" '[[ $out != *"ask fails fails now"* ]]'
 
 furl() { if command -v cygpath >/dev/null; then echo "file:///$(cygpath -m "$1")"; else echo "file://$1"; fi; }
 version=$(sed -n 's/^_te_version=//p' tinyeval)

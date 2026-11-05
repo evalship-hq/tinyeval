@@ -49,11 +49,15 @@ IN
   judge "Apologizes once and asks for the order number"
 ```
 
+For a chat feature, the input is the conversation so far, in the shape the code takes (a JSON array of messages, for example), and the lines grade the last reply.
+
 ## 5. Run
 
 Run `./tinyeval -n 3 -j 4`: three runs per test case, four test cases at once. `judge` needs `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (plus `TINYEVAL_JUDGE_MODEL`); ask the user for one if none is set.
 
 For each failing test case, decide whether the eval or the feature is wrong. Fix a wrong eval. Leave an eval that catches a real bug failing, and don't change the feature unless the user asks.
+
+A test case marked `!` couldn't run: its AI call failed or timed out, or the judge couldn't answer. Fix what broke, such as a missing key or a `-t` limit that's too short, not the test case.
 
 ## 6. CI
 

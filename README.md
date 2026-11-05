@@ -84,6 +84,29 @@ short() { [ "$(wc -w)" -lt 80 ] || echo "over 80 words"; }
 expect short
 ```
 
+For a chat feature, give the conversation so far and grade the last reply:
+
+```bash
+ask() { ruby bin/chat.rb; }   # sends the messages on stdin to the model, prints its reply
+
+test_case "remembers the order number" <<'EOF'
+[{"role": "user", "content": "My order 4471 never arrived."},
+ {"role": "assistant", "content": "Sorry to hear that. Let me look into it."},
+ {"role": "user", "content": "Any news?"}]
+EOF
+  contains "4471"
+```
+
+An eval file is bash, so test cases can come from a file:
+
+```bash
+# evals/refunds.tsv: a name, a question and a phrase the reply needs, split by tabs
+while IFS=$'\t' read -r name question want || [ -n "$name" ]; do
+  test_case "$name" "$question"
+    contains "$want"
+done <evals/refunds.tsv
+```
+
 See [examples/support.sh](examples/support.sh) for a suite whose AI call is a Ruby script using the `anthropic` gem.
 
 ## Judge
@@ -104,13 +127,22 @@ When the API answers with a rate limit or a server error, the judge waits and tr
 
 | Flag | Does |
 |---|---|
-| `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed |
+| `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed; runs that couldn't run don't count |
 | `-j 4` | runs 4 test cases at once; output stays in file order |
 | `-t 60` | stops an AI call after 60 seconds (default: 300) |
 | `-k refund` | runs only the test cases whose name contains "refund" |
 | `-o file` | writes the results there instead of `eval-results.json` |
 
 The same input can get a different reply each time, so `-n 3` is worth its cost.
+
+## Couldn't run
+
+```
+  ! missing package couldn't run
+      ask failed (exit 1): anthropic: 529 overloaded_error
+```
+
+When the AI call fails or times out, or the judge can't answer, the run says nothing about the reply. tinyeval counts it apart from the failures and leaves it out of Since the last run. It still exits 1.
 
 ## Since the last run
 
@@ -131,7 +163,7 @@ This replaces `./tinyeval` with the latest release. Commit it. In a terminal, ti
 
 ## In CI
 
-tinyeval exits 1 when an eval fails, so any CI can run it. On GitHub Actions:
+tinyeval exits 1 when an eval fails or couldn't run, so any CI can run it. On GitHub Actions:
 
 ```yaml
 name: Evals
@@ -155,6 +187,8 @@ jobs:
 {"suite":"support","key":"missing package","passed":false,"file":"evals/support.sh","duration_ms":2510,"input":"My package never showed up...","output":"So sorry about that!...","failure":"judge: It promises a new package..."}
 ]}
 ```
+
+A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
 
 ## Other eval tools
 

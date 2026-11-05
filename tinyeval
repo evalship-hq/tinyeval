@@ -2,12 +2,13 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.3.1
+_te_version=0.4.0
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
        tinyeval update
 
 Runs every test case in the eval files (default: evals/*.sh) and writes the
-results to eval-results.json. Exits 1 when an eval fails.
+results to eval-results.json. Exits 1 when an eval fails or couldn't run
+(its AI call failed or timed out, or the judge couldn't answer).
 
   -n runs     run each test case this many times; it passes when at least half pass
   -j jobs     run this many test cases at once (default: 1)
@@ -141,6 +142,8 @@ _te_add() {
 }
 
 _te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
+# The AI call or the judge broke. A run with only these says nothing about the reply: it couldn't run.
+_te_error() { _te_errors="${_te_errors:+$_te_errors$'\n'}$*"; _te_fail "$@"; }
 
 # A line the eval file runs that isn't a command, like a misspelled contains, fails its test case instead of grading nothing.
 _te_unknown() { [ -z "$_te_name" ] || _te_asserts+=("$(printf '%q ' _te_fail "not a tinyeval line: $1")"); }
@@ -181,13 +184,13 @@ $output
 </reply>
 
 Does the reply meet the criterion? Answer PASS or FAIL on the first line, then one sentence on why.") ||
-    { _te_fail "judge couldn't run: $reply"; return; }
+    { _te_error "judge couldn't run: $reply"; return; }
   verdict=$(printf '%s\n' "$reply" | grep -m 1 -oE 'PASS|FAIL')
   reply=$(printf '%s' "$reply" | tr '\n' ' ' | sed -E 's/^[^A-Z]*(PASS|FAIL)[^[:alnum:]]*//' | cut -c 1-300)
   case $verdict in
     PASS) ;;
     FAIL) _te_fail "judge: $reply" ;;
-    *) _te_fail "judge gave no PASS or FAIL: $reply" ;;
+    *) _te_error "judge gave no PASS or FAIL: $reply" ;;
   esac
 }
 
@@ -297,24 +300,24 @@ _te_call_ask() {
 # Runs one test case: ask, then every assertion, once per run. Prints its line; results go to $1/results.jsonl.
 _te_case() {
   _te_dir=$1
-  local i=1 passes=0 started ms code a passed failure shown_failures shown_output
+  local i=1 passes=0 errors=0 started ms code a passed failure couldnt shown_failures shown_output
   local suite key file
   suite=$(_te_json "$_te_suite") key=$(_te_json "$_te_name") file=$(_te_json "$_te_file")
   : >"$_te_dir/results.jsonl"
   while [ $i -le "$_te_runs" ]; do
-    _te_failures='' output=''
+    _te_failures='' _te_errors='' output=''
     started=$(_te_now)
     rm -f "$_te_dir/timed-out"
     if ! type ask >/dev/null 2>&1; then
-      _te_fail "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
+      _te_error "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
     else
       _te_call_ask "$_te_dir"
       code=$?
       output=$(cat "$_te_dir/out")
       if [ -f "$_te_dir/timed-out" ]; then
-        _te_fail "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
+        _te_error "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
       elif [ $code -ne 0 ]; then
-        _te_fail "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
+        _te_error "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
       elif [ ${#_te_asserts[@]} -eq 0 ]; then
         _te_fail "nothing grades this test case: add contains, matches, expect or judge under it"
       else
@@ -322,20 +325,29 @@ _te_case() {
       fi
     fi
     ms=$(($(_te_now) - started))
-    passed=true failure=
+    passed=true failure= couldnt=
     if [ -z "$_te_failures" ]; then passes=$((passes + 1)); else
       passed=false failure=",\"failure\":$(_te_json "$_te_failures")" shown_failures=$_te_failures shown_output=$output
+      # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
+      if [ "$_te_failures" = "$_te_errors" ]; then
+        errors=$((errors + 1)) couldnt=",\"metadata\":{\"couldnt_run\":$(_te_json "$_te_errors")}"
+      fi
     fi
     # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
-    printf '{"suite":%s,"key":%s,"passed":%s,"file":%s,"duration_ms":%s,"input":%s,"output":%s%s}\n' \
-      "$suite" "$key" "$passed" "$file" "$ms" "$(_te_json "$input")" "$(_te_json "$output")" "$failure" >>"$_te_dir/results.jsonl"
+    printf '{"suite":%s,"key":%s,"passed":%s,"file":%s,"duration_ms":%s,"input":%s,"output":%s%s%s}\n' \
+      "$suite" "$key" "$passed" "$file" "$ms" "$(_te_json "$input")" "$(_te_json "$output")" "$failure" "$couldnt" \
+      >>"$_te_dir/results.jsonl"
     i=$((i + 1))
   done
 
-  local mark="${_te_g}✓" count=""
-  [ "$_te_runs" -gt 1 ] && count=" $passes/$_te_runs"
+  # Runs that couldn't run don't count toward the majority.
+  local mark="${_te_g}✓" count="" ran=$((_te_runs - errors))
+  [ "$_te_runs" -gt 1 ] && count=" $passes/$ran"
   [ "$_te_runs" -eq 1 ] && count=" $(printf '%d.%ds' $((ms / 1000)) $((ms % 1000 / 100)))"
-  if [ $((passes * 2)) -lt "$_te_runs" ]; then mark="${_te_r}✗"; elif [ "$passes" -lt "$_te_runs" ]; then mark="${_te_y}~"; fi
+  [ "$errors" -eq 0 ] || count="$count, $errors couldn't run"
+  if [ "$ran" -eq 0 ]; then mark="${_te_y}!" count=" couldn't run"
+  elif [ $((passes * 2)) -lt "$ran" ]; then mark="${_te_r}✗"
+  elif [ "$passes" -lt "$ran" ]; then mark="${_te_y}~"; fi
   printf '  %s%s %s%s%s\n' "$mark" "$_te_0" "$_te_name" "$_te_d" "$count$_te_0"
   if [ -n "$shown_failures" ]; then
     printf '%s\n' "$shown_failures" | sed 's/^/      /'
@@ -343,15 +355,19 @@ _te_case() {
   fi
 }
 
-# suite<TAB>key<TAB>true|false per eval line of a results file (or results.jsonl) on stdin.
+# suite<TAB>key<TAB>true|false|error per eval line of a results file (or results.jsonl) on stdin.
+# A raw "couldnt_run": can only be the key: inside a JSON string its quotes are escaped.
 _te_statuses() {
-  sed -nE 's/^\{"suite":("([^"\\]|\\.)*"),"key":("([^"\\]|\\.)*"),"passed":(true|false).*/\1'"$_te_tab"'\3'"$_te_tab"'\5/p'
+  local line='^\{"suite":("([^"\\]|\\.)*"),"key":("([^"\\]|\\.)*"),"passed":(true|false)'
+  sed -nE -e "s/$line.*\"couldnt_run\":.*/\\1$_te_tab\\3${_te_tab}error/p" -e t -e "s/$line.*/\\1$_te_tab\\3$_te_tab\\5/p"
 }
 
-# suite<TAB>key<TAB>pass|fail per eval, in first-run order: the majority of its runs, as evalship counts repeats.
+# suite<TAB>key<TAB>pass|fail|error per eval, in first-run order: the majority of the runs that could run, as evalship
+# counts repeats. error when none could.
 _te_majority() {
-  awk -F '\t' '{ k = $1 FS $2; if (!(k in n)) order[++m] = k; n[k]++; if ($3 == "true") p[k]++ }
-    END { for (i = 1; i <= m; i++) print order[i] FS (p[order[i]] * 2 >= n[order[i]] ? "pass" : "fail") }'
+  awk -F '\t' '{ k = $1 FS $2; if (!(k in seen)) { seen[k] = 1; order[++m] = k }
+      if ($3 != "error") { n[k]++; if ($3 == "true") p[k]++ } }
+    END { for (i = 1; i <= m; i++) { k = order[i]; print k FS (!(k in n) ? "error" : p[k] * 2 >= n[k] ? "pass" : "fail") } }'
 }
 
 # --- run ------------------------------------------------------------------------
@@ -389,7 +405,7 @@ if [ -f "$_te_results" ]; then
   awk -F '\t' -v g="$_te_g" -v r="$_te_r" -v z="$_te_0" '
     function show(s) { s = substr(s, 2, length(s) - 2); gsub(/\\"/, "\"", s); return s }
     NR == FNR { was[$1 FS $2] = $3; next }
-    ($1 FS $2) in was && was[$1 FS $2] != $3 {
+    ($1 FS $2) in was && was[$1 FS $2] != $3 && was[$1 FS $2] != "error" && $3 != "error" {
       if (!shown++) print "\nSince the last run"
       print "  " ($3 == "pass" ? g "✓" z : r "✗" z) " " show($1) " › " show($2) ($3 == "pass" ? " passes now" : " fails now")
     }' "$_te_tmp/was" "$_te_tmp/now"
@@ -397,8 +413,13 @@ fi
 { echo '{"evals": ['; sed '$!s/$/,/' "$_te_tmp/results.jsonl"; echo ']}'; } >"$_te_results"
 
 _te_failed=$(grep -c "${_te_tab}fail\$" "$_te_tmp/now")
+_te_broke=$(grep -c "${_te_tab}error\$" "$_te_tmp/now")
+[ "$_te_broke" -eq 0 ] || _te_not_run=", $_te_broke couldn't run"
 if [ "$_te_failed" -gt 0 ]; then
-  printf '\n%s%s of %s evals failed%s %s(%s)%s\n' "$_te_r" "$_te_failed" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
+  printf '\n%s%s of %s evals failed%s%s %s(%s)%s\n' "$_te_r" "$_te_failed" "$_te_total" "${_te_not_run-}" "$_te_0" \
+    "$_te_d" "$_te_results" "$_te_0"
+elif [ "$_te_broke" -gt 0 ]; then
+  printf "\n%s%s of %s evals couldn't run%s %s(%s)%s\n" "$_te_y" "$_te_broke" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
 else
   printf '\n%sAll %s evals passed%s %s(%s)%s\n' "$_te_g" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
 fi
@@ -406,4 +427,4 @@ if [ -n "${_te_check-}" ] && _te_latest=$(cat "$_te_cache/latest" 2>/dev/null) &
   case $0 in ./*) _te_cmd=$0 ;; *) _te_cmd=tinyeval ;; esac
   printf '%stinyeval %s is out. Run %s update%s\n' "$_te_d" "$_te_latest" "$_te_cmd" "$_te_0"
 fi
-[ "$_te_failed" -eq 0 ] || exit 1
+[ $((_te_failed + _te_broke)) -eq 0 ] || exit 1
