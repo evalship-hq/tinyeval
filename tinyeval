@@ -31,6 +31,8 @@ for _te_f in "$@"; do
 done
 
 _te_tmp=$(mktemp -d) || exit 2
+# Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
+if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
 trap 'rm -rf "$_te_tmp"' EXIT
 if [ -t 1 ]; then _te_g=$'\033[32m' _te_r=$'\033[31m' _te_y=$'\033[33m' _te_d=$'\033[2m' _te_0=$'\033[0m'; fi
 _te_tab=$'\t'
@@ -108,6 +110,8 @@ Does the reply meet the criterion? Answer PASS or FAIL on the first line, then o
 
 # A JSON string holding $1. Drops control characters but newline and tab, so ANSI colors lose their ESC.
 _te_json() {
+  # bs is two backslashes, not an escaped quote.
+  # shellcheck disable=SC1003
   local s bs='\\' q='\"' n='\n' t='\t'
   s=$(printf '%s' "$1" | tr -d '\000-\010\013-\037')
   s=${s//\\/"$bs"} s=${s//\"/"$q"} s=${s//$'\n'/"$n"} s=${s//$'\t'/"$t"}
@@ -162,7 +166,7 @@ _te_run_case() {
   local suite key file
   suite=$(_te_json "$_te_suite") key=$(_te_json "$_te_name") file=$(_te_json "$_te_file")
   while [ $i -le "$_te_runs" ]; do
-    _te_failures= output=
+    _te_failures='' output=''
     started=$(_te_now)
     if ! type ask >/dev/null 2>&1; then
       _te_fail "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
@@ -216,7 +220,8 @@ for _te_f in "$@"; do
   _te_suite=$(basename "$_te_f" .sh)
   echo "$_te_suite"
   # A subshell per file, so one file's ask doesn't leak into the next.
-  (_te_name=; . "$_te_f"; _te_run_case) </dev/null
+  # shellcheck source=/dev/null
+  (_te_name=''; . "$_te_f"; _te_run_case) </dev/null
 done
 
 _te_statuses <"$_te_tmp/results.jsonl" | _te_majority >"$_te_tmp/now"

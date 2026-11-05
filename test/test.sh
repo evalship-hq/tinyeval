@@ -25,7 +25,8 @@ ok "basics: no jq call" '[[ $out != *"called jq"* ]]'
 
 ./tinyeval -o "$tmp/esc.json" test/fixtures/escaping.sh >/dev/null; code=$?
 ok "escaping: passes" '[ $code -eq 0 ]'
-ok "escaping: output survives as JSON" '[ "$(jqr -r ".evals[0].output" "$tmp/esc.json")" = "$(printf "back\\\\slash \"quoted\"\ttab\nline two [31mred[0m")" ]'
+# tr: jq.exe on Windows writes CRLF.
+ok "escaping: output survives as JSON" '[ "$(jqr -r ".evals[0].output" "$tmp/esc.json" | tr -d "\r")" = "$(printf "back\\\\slash \"quoted\"\ttab\nline two [31mred[0m")" ]'
 ok "escaping: key with quotes" 'jqr -e ".evals[0].key == \"escaping \\\"quotes\\\"\"" "$tmp/esc.json" >/dev/null'
 
 out=$(./tinyeval -o "$tmp/failing.json" test/fixtures/failing.sh); code=$?
@@ -37,7 +38,9 @@ ok "failing: failure in results" 'jqr -e ".evals[0].passed == false and (.evals[
 
 # The judge's API, faked with files: curl reads file:// URLs and ignores the request body.
 api() { mkdir -p "$tmp/api/chat" && printf '%s' "$1" >"$tmp/api/chat/completions"; }
-judge() { TINYEVAL_JUDGE= TINYEVAL_JUDGE_URL="file://$tmp/api" TINYEVAL_JUDGE_MODEL=m ./tinyeval -o "$tmp/judge.json" test/fixtures/judge.sh; }
+api_url="file://$tmp/api"
+if command -v cygpath >/dev/null; then api_url="file:///$(cygpath -m "$tmp/api")"; fi # curl.exe on Windows
+judge() { TINYEVAL_JUDGE='' TINYEVAL_JUDGE_URL=$api_url TINYEVAL_JUDGE_MODEL=m ./tinyeval -o "$tmp/judge.json" test/fixtures/judge.sh; }
 api '{"choices":[{"message":{"role":"assistant","content":"**FAIL**\nIt says \"yes\" to a refund."}}]}'
 out=$(judge); code=$?
 ok "judge API: FAIL and its reason" '[ $code -eq 1 ] && [[ $out == *"judge: It says \"yes\" to a refund."* ]]'
