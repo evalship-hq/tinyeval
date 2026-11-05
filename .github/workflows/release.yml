@@ -1,0 +1,21 @@
+name: Release
+
+# Pushing a tag like v0.3.0 publishes a release with tinyeval attached: install.sh, setup.md and
+# tinyeval update download it from releases/latest.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: The tag matches the version in tinyeval
+        run: grep -qx "_te_version=${GITHUB_REF_NAME#v}" tinyeval
+      - run: test/test.sh
+      - run: gh release create "$GITHUB_REF_NAME" tinyeval install.sh --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

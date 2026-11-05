@@ -9,7 +9,7 @@ You're adding evals for this repo's AI features with tinyeval, a one-file bash r
 In the repo root, download the runner and check that it runs:
 
 ```sh
-curl -fsSLo tinyeval https://raw.githubusercontent.com/evalship-hq/tinyeval/v0.2.0/tinyeval
+curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval
 chmod +x tinyeval
 ./tinyeval -v
 ```
@@ -75,6 +75,21 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
 
-## 7. Report
+## 7. Tell coding agents
 
-Tell the user, briefly: which features have evals and how many test cases, what failed and whether the feature or the eval is wrong, and which secrets to add in the repo settings for CI.
+Add this section to the repo's AGENTS.md, or to its CLAUDE.md if that's the only one. If the repo has neither, ask the user whether to create AGENTS.md with it.
+
+```markdown
+## Evals
+
+The AI features have evals in `evals/`, run by `./tinyeval`. `./tinyeval -h` lists what an eval file can use.
+
+- After you change a prompt, a model or an AI call, run `./tinyeval -n 3 -j 4` and fix what broke. `-k NAME` runs only the test cases whose name contains NAME.
+- When you add an AI feature or change what one should do, add or update its test cases.
+- Leave an eval that catches a real bug failing; don't loosen it to pass.
+- `./tinyeval update` installs the latest tinyeval. Commit the new `./tinyeval`.
+```
+
+## 8. Report
+
+Tell the user, briefly: which features have evals and how many test cases, what failed and whether the feature or the eval is wrong, where the Evals section went, and which secrets to add in the repo settings for CI.

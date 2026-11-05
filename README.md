@@ -3,7 +3,7 @@
 Evals framework for AI features that works with any language. One bash file, as few dependencies as possible.
 
 ```
-$ ./tinyeval
+$ tinyeval
 support
   ✓ refund after the window 4.4s
   ✗ missing package 2.5s
@@ -25,10 +25,10 @@ Or set it up yourself. In your repo's root:
 
 ```sh
 curl -fsSL https://tinyeval.com/install.sh | sh
-./tinyeval
+tinyeval
 ```
 
-[install.sh](install.sh) adds `./tinyeval` (commit it), `evals/example.sh` and an `eval-results.json` line in `.gitignore`. Nothing else. Then replace `ask` in the example with your AI call:
+[install.sh](install.sh) adds `./tinyeval` (commit it), `evals/example.sh` and an `eval-results.json` line in `.gitignore`. It also puts a `tinyeval` command in `~/.local/bin` that runs the repo's `./tinyeval`, so each repo keeps its own version. Teammates and CI run `./tinyeval` with nothing to install. Then replace `ask` in the example with your AI call:
 
 ```bash
 ask() { python3 bot.py "$1"; }   # your AI call: input in, reply out
@@ -118,6 +118,14 @@ tinyeval writes `eval-results.json` and compares each run with the one before it
 Since the last run
   ✗ support › missing package fails now
 ```
+
+## Updating
+
+```sh
+tinyeval update
+```
+
+This replaces `./tinyeval` with the latest release. Commit it. In a terminal, tinyeval checks for a new release once a day and names it under the summary. The check downloads the latest tinyeval from GitHub and sends nothing about your evals. It never runs in CI.
 
 ## In CI
 

@@ -26,6 +26,7 @@ jobs:
           mkdir "$RUNNER_TEMP/repo" && cd "$RUNNER_TEMP/repo" && git init -q
           TINYEVAL_VERSION=$GITHUB_SHA sh "$GITHUB_WORKSPACE/install.sh"
           ./tinyeval
+          "$HOME/.local/bin/tinyeval" # the command on PATH runs ./tinyeval
 
   # Busybox tools, and bash only once installed.
   alpine:
@@ -33,3 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker run --rm -v "$PWD:/w" -w /w alpine:3.22 sh -c 'apk add --no-cache bash curl jq >/dev/null && bash test/test.sh'
+
+  # The README's Ruby example against the real model and judge, once the repo has the OPENROUTER_API_KEY secret.
+  live:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - if: env.OPENROUTER_API_KEY != ''
+        run: ./tinyeval -n 3 -j 4 examples/support.sh

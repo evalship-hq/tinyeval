@@ -2,8 +2,9 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.2.0
+_te_version=0.3.0
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
+       tinyeval update
 
 Runs every test case in the eval files (default: evals/*.sh) and writes the
 results to eval-results.json. Exits 1 when an eval fails.
@@ -13,7 +14,53 @@ results to eval-results.json. Exits 1 when an eval fails.
   -t seconds  stop an AI call that takes longer (default: 300)
   -k text     run only the test cases whose name contains text
   -o file     where to write the results (default: eval-results.json)
-  -v          print the version"
+  -v          print the version
+  update      replace this file with the latest release
+
+An eval file is bash. It defines ask, then lists test cases, each followed
+by the lines that grade its reply:
+
+  ask() { ruby bin/answer.rb; }   the AI call: input as \$1 and on stdin, reply on stdout
+  test_case NAME [INPUT]          starts a test case; without INPUT it reads a heredoc
+  contains TEXT                   the reply contains TEXT, ignoring case
+  not_contains TEXT               the reply doesn't contain TEXT, ignoring case
+  matches REGEX                   the reply matches the extended regex
+  equals TEXT                     the reply is exactly TEXT
+  expect COMMAND...               COMMAND exits 0 with the reply on stdin
+  judge CRITERION                 a model says the reply meets CRITERION; it needs
+                                  OPENROUTER_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY
+
+More: https://github.com/evalship-hq/tinyeval"
+_te_download=${TINYEVAL_DOWNLOAD_URL:-https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval}
+
+# The tinyeval on PATH runs the repo's own ./tinyeval, so each repo keeps the version its evals were written for.
+if [ -f ./tinyeval ] && [ -x ./tinyeval ] && ! [ ./tinyeval -ef "$0" ]; then exec ./tinyeval "$@"; fi
+
+# Whether version $1 is newer than version $2.
+_te_newer() {
+  awk -v a="$1" -v b="$2" 'BEGIN { split(a, x, "."); split(b, y, ".")
+    for (i = 1; i <= 3; i++) if (x[i] + 0 != y[i] + 0) exit !(x[i] + 0 > y[i] + 0); exit 1 }'
+}
+
+if [ "${1-}" = update ]; then
+  # Next to this file, so the rename below replaces it in one step: bash may still be reading the old one.
+  _te_new="$0.download"
+  if ! curl -fsSL "$_te_download" -o "$_te_new" || ! _te_latest=$(sed -n 's/^_te_version=//p' "$_te_new") ||
+    [ -z "$_te_latest" ] || ! bash -n "$_te_new"; then
+    rm -f "$_te_new"
+    echo "tinyeval: couldn't download the latest tinyeval from $_te_download" >&2
+    exit 2
+  fi
+  if ! _te_newer "$_te_latest" "$_te_version"; then
+    rm -f "$_te_new"
+    echo "tinyeval $_te_version is the latest version"
+    exit 0
+  fi
+  chmod +x "$_te_new" && mv -f "$_te_new" "$0" || exit 2
+  if [ -d .git ] && [ "$0" -ef ./tinyeval ]; then _te_commit=" Commit it with your code."; fi
+  echo "Updated $0 from $_te_version to $_te_latest.${_te_commit-}"
+  exit 0
+fi
 
 _te_runs=1 _te_jobs=1 _te_timeout=300 _te_only=''
 _te_results=eval-results.json
@@ -37,6 +84,19 @@ done
 for _te_f in "$@"; do
   [ -f "$_te_f" ] || { echo "tinyeval: no eval file at $_te_f. Create one: https://github.com/evalship-hq/tinyeval#quickstart" >&2; exit 2; }
 done
+
+# In a terminal, never in CI: once a day, look up the latest release in the background. The summary names it.
+_te_cache=${XDG_CACHE_HOME:-$HOME/.cache}/tinyeval
+if [ -t 1 ] && [ -z "${CI-}" ]; then
+  _te_check=1
+  if [ -z "$(find "$_te_cache/latest" -mmin -1440 2>/dev/null)" ]; then
+    (
+      mkdir -p "$_te_cache" && touch "$_te_cache/latest" # also when offline, so the next try is a day later
+      curl -fsSL -m 20 "$_te_download" | sed -n 's/^_te_version=//p' >"$_te_cache/latest.new"
+      [ -s "$_te_cache/latest.new" ] && mv -f "$_te_cache/latest.new" "$_te_cache/latest"
+    ) >/dev/null 2>&1 &
+  fi
+fi
 
 _te_tmp=$(mktemp -d) || exit 2
 # Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
@@ -330,6 +390,11 @@ fi
 _te_failed=$(grep -c "${_te_tab}fail\$" "$_te_tmp/now")
 if [ "$_te_failed" -gt 0 ]; then
   printf '\n%s%s of %s evals failed%s %s(%s)%s\n' "$_te_r" "$_te_failed" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
-  exit 1
+else
+  printf '\n%sAll %s evals passed%s %s(%s)%s\n' "$_te_g" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
 fi
-printf '\n%sAll %s evals passed%s %s(%s)%s\n' "$_te_g" "$_te_total" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
+if [ -n "${_te_check-}" ] && _te_latest=$(cat "$_te_cache/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
+  case $0 in ./*) _te_cmd=$0 ;; *) _te_cmd=tinyeval ;; esac
+  printf '%stinyeval %s is out. Run %s update%s\n' "$_te_d" "$_te_latest" "$_te_cmd" "$_te_0"
+fi
+[ "$_te_failed" -eq 0 ] || exit 1

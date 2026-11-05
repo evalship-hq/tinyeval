@@ -11,6 +11,7 @@ real_jq=$(command -v jq) || { echo "the tests need jq"; exit 1; }
 jqr() { "$real_jq" "$@"; }
 mkdir "$tmp/bin" && printf '#!/bin/sh\necho "tinyeval called jq" >&2\nexit 99\n' >"$tmp/bin/jq" && chmod +x "$tmp/bin/jq"
 export PATH="$tmp/bin:$PATH"
+export XDG_CACHE_HOME="$tmp/cache" # where the daily update check keeps the latest version
 
 # The fake judge passes a reply that mentions "30 days" and fails any other.
 export TINYEVAL_JUDGE='input=$(cat); case $input in *"30 days"*) echo "PASS it does";; *) printf "**FAIL**\nIt approves the refund.";; esac'
@@ -100,5 +101,39 @@ sed '2s/"passed":false/"passed":true/' "$tmp/failing.json" >"$tmp/prev.json"
 out=$(./tinyeval -o "$tmp/prev.json" test/fixtures/failing.sh)
 ok "since last run: names the new failure" '[[ $out == *"Since the last run"*"failing › wrong reply fails now"* ]]'
 ok "since last run: unchanged evals left out" '[[ $out != *"ask fails fails now"* ]]'
+
+furl() { if command -v cygpath >/dev/null; then echo "file:///$(cygpath -m "$1")"; else echo "file://$1"; fi; }
+version=$(sed -n 's/^_te_version=//p' tinyeval)
+# The latest release, faked with a file: a copy of tinyeval that says it's 9.9.9.
+sed 's/^_te_version=.*/_te_version=9.9.9/' tinyeval >"$tmp/release"
+printf '<html>Not Found</html>\n' >"$tmp/broken"
+
+mkdir "$tmp/repo" && printf '#!/usr/bin/env bash\necho "repo copy $*"\n' >"$tmp/repo/tinyeval" && chmod +x "$tmp/repo/tinyeval"
+here=$PWD
+out=$(cd "$tmp/repo" && "$here/tinyeval" -k x)
+ok "on PATH: runs the repo's ./tinyeval" '[ "$out" = "repo copy -k x" ]'
+
+mkdir "$tmp/up" && cp tinyeval "$tmp/up/tinyeval"
+out=$(cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/release") ./tinyeval update); code=$?
+ok "update: installs a newer release" '[ $code -eq 0 ] && [[ $out == *"from $version to 9.9.9"* ]] && [ "$(cd "$tmp/up" && ./tinyeval -v)" = "tinyeval 9.9.9" ]'
+out=$(cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/release") ./tinyeval update); code=$?
+ok "update: says when it's the latest" '[ $code -eq 0 ] && [[ $out == *"9.9.9 is the latest version"* ]]'
+cp tinyeval "$tmp/up/tinyeval"
+(cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/broken") ./tinyeval update >/dev/null 2>&1); code=$?
+ok "update: keeps the file when the download isn't tinyeval" '[ $code -eq 2 ] && cmp -s tinyeval "$tmp/up/tinyeval" && [ ! -e "$tmp/up/tinyeval.download" ]'
+
+# The update check runs only in a terminal, which script gives. Git Bash has no script.
+tty_run() { if [ "$(uname)" = Darwin ]; then script -q /dev/null "$@"; else script -qc "$(printf '%q ' "$@")" /dev/null; fi </dev/null; }
+if command -v script >/dev/null && ! command -v cygpath >/dev/null; then
+  tty_run env CI= TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/tty.json" test/fixtures/basics.sh >/dev/null
+  sleep 1
+  ok "update check: saves the latest version" '[ "$(cat "$tmp/cache/tinyeval/latest" 2>/dev/null)" = 9.9.9 ]'
+  out=$(tty_run env CI= TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/tty.json" test/fixtures/basics.sh)
+  ok "update check: the next run names the release" '[[ $out == *"tinyeval 9.9.9 is out. Run ./tinyeval update"* ]]'
+  rm -rf "$tmp/cache"
+  tty_run env CI=true TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/tty.json" test/fixtures/basics.sh >/dev/null
+  sleep 1
+  ok "update check: never in CI" '[ ! -e "$tmp/cache/tinyeval" ]'
+fi
 
 [ $fails -eq 0 ] && echo "all tests passed" || { echo "$fails failed"; exit 1; }

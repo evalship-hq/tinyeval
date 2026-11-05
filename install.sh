@@ -1,13 +1,20 @@
 #!/bin/sh
 # Adds tinyeval to the repo you run it in: curl -fsSL https://tinyeval.com/install.sh | sh
-# Downloads ./tinyeval, starts evals/ with an example, and keeps eval-results.json out of git. Nothing else.
+# Downloads ./tinyeval, starts evals/ with an example, keeps eval-results.json out of git, and puts a
+# tinyeval command in ~/.local/bin that runs the repo's ./tinyeval. Nothing else.
 set -eu
-version=${TINYEVAL_VERSION:-v0.2.0}
+if [ -n "${TINYEVAL_VERSION-}" ]; then
+  url="https://raw.githubusercontent.com/evalship-hq/tinyeval/$TINYEVAL_VERSION/tinyeval"
+else
+  url=https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval
+fi
 
-curl -fsSL "https://raw.githubusercontent.com/evalship-hq/tinyeval/$version/tinyeval" -o tinyeval.download
+curl -fsSL "$url" -o tinyeval.download
+version=$(sed -n 's/^_te_version=//p' tinyeval.download)
+[ -n "$version" ] || { rm -f tinyeval.download; echo "install.sh: $url isn't tinyeval" >&2; exit 1; }
 mv tinyeval.download tinyeval
 chmod +x tinyeval
-echo "Added ./tinyeval ($version). Commit it with your code."
+echo "Added ./tinyeval $version. Commit it with your code."
 
 if [ ! -d evals ]; then
   mkdir evals
@@ -30,7 +37,19 @@ if [ -d .git ] && ! grep -qx 'eval-results.json' .gitignore 2>/dev/null; then
   echo "Added eval-results.json to .gitignore"
 fi
 
+mkdir -p "$HOME/.local/bin"
+cp tinyeval "$HOME/.local/bin/tinyeval"
+echo "Added the tinyeval command to ~/.local/bin"
+
 command -v bash >/dev/null || echo "tinyeval runs on bash, which this machine doesn't have. On Alpine: apk add bash"
 echo
-echo "Run ./tinyeval, then replace ask in evals/example.sh with your AI call."
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) echo "Run tinyeval, then replace ask in evals/example.sh with your AI call." ;;
+  *)
+    echo "To type tinyeval, add ~/.local/bin to your PATH in your shell's startup file (~/.zshrc on a Mac):"
+    # shellcheck disable=SC2016 # the line to paste, unexpanded
+    echo '  export PATH="$HOME/.local/bin:$PATH"'
+    echo "Until then, run ./tinyeval. Then replace ask in evals/example.sh with your AI call."
+    ;;
+esac
 echo "Or have your coding agent do it: Set up evals with https://tinyeval.com/setup.md"
