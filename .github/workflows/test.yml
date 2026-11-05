@@ -1,0 +1,23 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # macOS runs /bin/bash 3.2 with BSD tools, Ubuntu bash 5.2 with GNU tools, Windows Git Bash 5.3.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - run: test/test.sh
+      - if: runner.os == 'Linux'
+        run: shellcheck tinyeval test/test.sh
