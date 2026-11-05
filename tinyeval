@@ -142,6 +142,9 @@ _te_add() {
 
 _te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
 
+# A line the eval file runs that isn't a command, like a misspelled contains, fails its test case instead of grading nothing.
+_te_unknown() { [ -z "$_te_name" ] || _te_asserts+=("$(printf '%q ' _te_fail "not a tinyeval line: $1")"); }
+
 # Whether $1 contains $2, ignoring case.
 _te_has() {
   shopt -s nocasematch
@@ -310,6 +313,8 @@ _te_case() {
         _te_fail "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
       elif [ $code -ne 0 ]; then
         _te_fail "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
+      elif [ ${#_te_asserts[@]} -eq 0 ]; then
+        _te_fail "nothing grades this test case: add contains, matches, expect or judge under it"
       else
         for a in "${_te_asserts[@]}"; do eval "$a"; done
       fi
@@ -360,8 +365,10 @@ for _te_f in "$@"; do
     _te_name='' _te_n=0 _te_header=''
     _te_pids=()
     _te_dirs=()
+    trap '[ $? -ne 127 ] || _te_unknown "$BASH_COMMAND"' ERR
     # shellcheck source=/dev/null
     . "$_te_f"
+    trap - ERR
     _te_run_case
     while [ ${#_te_pids[@]} -gt 0 ]; do _te_collect; done
   ) </dev/null &

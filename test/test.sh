@@ -57,6 +57,10 @@ out=$(./tinyeval -n 3 -o "$tmp/flaky.json" test/fixtures/flaky.sh); code=$?
 ok "flaky: 2 of 3 passes" '[ $code -eq 0 ] && [[ $out == *"mostly yes"*"2/3"* ]]'
 ok "flaky: one entry per run" '[ "$(jqr "[.evals[] | select(.passed)] | length" "$tmp/flaky.json")" -eq 2 ] && [ "$(jqr ".evals | length" "$tmp/flaky.json")" -eq 3 ]'
 
+out=$(./tinyeval -o "$tmp/typo.json" test/fixtures/typo.sh 2>/dev/null); code=$?
+ok "a misspelled line fails its test case" '[ $code -eq 1 ] && [[ $out == *"not a tinyeval line: contians"* ]]'
+ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"2 of 3 evals failed"* ]]'
+
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask in test/fixtures/noask.sh"* ]]'
 
