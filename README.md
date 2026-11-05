@@ -98,6 +98,8 @@ See [examples/support.sh](examples/support.sh) for a suite whose AI call is a Ru
 
 `TINYEVAL_JUDGE_MODEL` picks another model. Any OpenAI-compatible API works with `TINYEVAL_JUDGE_URL` and `TINYEVAL_JUDGE_KEY`, such as Ollama at `http://localhost:11434/v1`. Or set `TINYEVAL_JUDGE` to a command that reads the prompt on stdin, like `claude -p`.
 
+When the API answers with a rate limit or a server error, the judge waits and tries again, up to 3 times. `ask` never gets a second try, so a flaky AI feature still shows.
+
 ## Options
 
 | Flag | Does |

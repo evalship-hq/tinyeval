@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.3.0
+_te_version=0.3.1
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
        tinyeval update
 
@@ -224,8 +224,10 @@ _te_ask_judge() {
   command -v curl >/dev/null || { echo "judge needs curl, or TINYEVAL_JUDGE set to a command"; return 1; }
   # The key goes in a header file, not the command line, so it doesn't show in ps.
   (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_dir/auth")
+  # --retry waits out 429 and 5xx replies. -o, because on stdout each retry's reply would add to the last one.
   res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$(_te_json "$model")" "$(_te_json "$1")" |
-    curl -sS --max-time 120 "${url%/}/chat/completions" -H "@$_te_dir/auth" -H 'Content-Type: application/json' --data-binary @- 2>&1) ||
+    curl -sS --retry 3 --max-time 120 -o "$_te_dir/judge.json" "${url%/}/chat/completions" -H "@$_te_dir/auth" \
+      -H 'Content-Type: application/json' --data-binary @- 2>&1) && res=$(cat "$_te_dir/judge.json") ||
     { echo "$res"; return 1; }
   content=$(printf '%s' "$res" | _te_json_get content)
   if [ -z "$content" ]; then
