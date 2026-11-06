@@ -121,6 +121,8 @@ See [examples/support.sh](examples/support.sh) for a suite whose AI call is a Ru
 
 `TINYEVAL_JUDGE_MODEL` picks another model. Any OpenAI-compatible API works with `TINYEVAL_JUDGE_URL` and `TINYEVAL_JUDGE_KEY`, such as Ollama at `http://localhost:11434/v1`. Or set `TINYEVAL_JUDGE` to a command that reads the prompt on stdin, like `claude -p`.
 
+Pick a judge model your feature doesn't use: a model grading its own replies is the most common [judge mistake](https://evalship.com/articles/llm-as-a-judge-mistakes) in open-source suites.
+
 When the API answers with a rate limit or a server error, the judge waits and tries again, up to 3 times. `ask` never gets a second try, so a flaky AI feature still shows.
 
 ## Options
@@ -192,18 +194,20 @@ A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
 
 ## Other eval tools
 
-We set up the same suite as [examples/support.sh](examples/support.sh) in promptfoo and Braintrust: 2 test cases, 3 runs each, 4 at once, with the same AI call and Claude Haiku 5.5 as the judge. Each was installed from a cold cache on an M2 MacBook on 2026-11-05. [bench/](bench/) has the setups and the script.
+We ran the same suites in promptfoo and Braintrust, each installed from a cold cache on an M2 MacBook on 2026-11-05 and 06. [bench/](bench/) has the setups and the scripts.
 
-| | tinyeval 0.3.0 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
+| | tinyeval 0.4.2 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
 |---|---|---|---|
 | Needs | bash and curl | Node 22.22 or later | Python, and `openai` for judges |
 | Install | 20 KB, 1 file, 0.2–6 s | 690 MB, 614 packages, 45–50 s | 65 MB, 35 packages, 8–10 s |
 | Startup | 0.01 s | 0.8 s | 0.2 s |
-| Suite | 9 lines | 22 lines, plus a 1-line script | 30 lines |
+| [examples/support.sh](examples/support.sh) | 9 lines | 22 lines, plus a 1-line script | 30 lines |
+| 200 test cases, instant AI call | 1.6 s | 1.8 s | 1.3 s |
+| 40 test cases, 3 runs, 1 s AI call | 15.7 s | 16.3 s | 15.8 s |
 
-With Haiku 5.5 answering too, runs took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
+Suite speed is a tie. The last two rows give all three the same script as the AI call and a regex check, 4 and then 8 at once. 120 calls of a second each, 8 at once, take 15 seconds at least, so the AI calls set the pace, not the tool. The support suite, with Haiku 5.5 answering and judging, took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
 
-Pick promptfoo for red teaming or comparing many providers side by side. Pick Braintrust for a hosted place to compare experiments and keep datasets. Raindrop is a hosted product that monitors AI features in production, not an eval runner, so it isn't in the table.
+tinyeval has no viewer, reply cache or hosted datasets: its results are one JSON file. Pick promptfoo for red teaming or comparing many providers side by side. Pick Braintrust for a hosted place to compare experiments and keep datasets. Raindrop is a hosted product that monitors AI features in production, not an eval runner, so it isn't in the table.
 
 ## Compare pull requests with main
 
@@ -220,6 +224,13 @@ A fresh CI run has no last run to compare with. [evalship](https://evalship.com)
           name: eval-results
           path: eval-results.json
 ```
+
+## Guides
+
+- [LLM evals in Ruby, Go and Rust](https://evalship.com/articles/llm-evals-in-ruby-go-rust): tinyeval calling your real code in each, and in GitHub Actions
+- [Recorded LLM replies in Rails tests pass any prompt change](https://evalship.com/articles/recorded-llm-replies-in-rails-tests): why 16 of 19 Ruby apps' replays miss prompt changes
+- [LLM evals that can't fail](https://evalship.com/articles/llm-eval-flaws): the flaws found in 10 open-source eval suites
+- [How noisy are LLM evals in CI?](https://evalship.com/articles/eval-noise): how often passing evals fail by chance, and why `-n 3` helps
 
 ## License
 

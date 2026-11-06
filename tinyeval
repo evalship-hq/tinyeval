@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.4.1
+_te_version=0.4.2
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
        tinyeval update
 
@@ -202,7 +202,7 @@ _te_json() {
   # bs is two backslashes, not an escaped quote.
   # shellcheck disable=SC1003
   local s bs='\\' q='\"' n='\n' t='\t'
-  s=$(printf '%s' "$1" | tr -d '\000-\010\013-\037')
+  case $1 in *[[:cntrl:]]*) s=$(printf '%s' "$1" | tr -d '\000-\010\013-\037') ;; *) s=$1 ;; esac
   s=${s//\\/"$bs"} s=${s//\"/"$q"} s=${s//$'\n'/"$n"} s=${s//$'\t'/"$t"}
   printf '"%s"' "$s"
 }
@@ -245,12 +245,6 @@ _te_ask_judge() {
   printf '%s' "$content" | sed -e 's/\\[nrt]/ /g' -e 's/\\"/"/g' -e 's/\\\//\//g' -e 's/\\\\/\\/g'
 }
 
-# Milliseconds. bash 3.2 (macOS's /bin/bash) has no EPOCHREALTIME, so perl, then whole seconds.
-_te_now() {
-  if [ -n "${EPOCHREALTIME:-}" ]; then echo $((${EPOCHREALTIME/[.,]/} / 1000))
-  else perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000' 2>/dev/null || echo $(($(date +%s) * 1000)); fi
-}
-
 # Starts the test case test_case set up, in the background. Up to -j run at once; they print in file order.
 _te_run_case() {
   [ -n "$_te_name" ] || return 0
@@ -280,7 +274,8 @@ _te_collect() {
 # shortcut: a timeout stops ask and its direct children; deeper ones run on, but no longer hold up tinyeval.
 _te_call_ask() {
   local dir=$1 pid watchdog code
-  ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" &
+  # 3>&-: a child left running after a timeout would hold the time keyword's stderr open, and so the caller's.
+  ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" 3>&- &
   pid=$!
   (
     # jobs, not $!: on Git Bash the stop often lands before $! is saved, which left the sleep running.
@@ -292,7 +287,7 @@ _te_call_ask() {
     if [ -r "/proc/$pid/winpid" ]; then taskkill //F //T //PID "$(cat "/proc/$pid/winpid")"; fi
     pkill -TERM -P "$pid" 2>/dev/null
     kill -TERM "$pid" 2>/dev/null
-  ) >/dev/null 2>&1 &
+  ) >/dev/null 2>&1 3>&- &
   watchdog=$!
   wait "$pid" 2>/dev/null # no "Terminated" line when the watchdog stopped it
   code=$?
@@ -304,31 +299,34 @@ _te_call_ask() {
 # Runs one test case: ask, then every assertion, once per run. Prints its line; results go to $1/results.jsonl.
 _te_case() {
   _te_dir=$1
-  local i=1 passes=0 errors=0 started ms code a passed failure couldnt shown_failures shown_output
+  local i=1 passes=0 errors=0 ms code a passed failure couldnt shown_failures shown_output TIMEFORMAT=%3R
   local suite key file
   suite=$(_te_json "$_te_suite") key=$(_te_json "$_te_name") file=$(_te_json "$_te_file")
   : >"$_te_dir/results.jsonl"
   while [ $i -le "$_te_runs" ]; do
     _te_failures='' _te_errors='' output=''
-    started=$(_te_now)
-    rm -f "$_te_dir/timed-out"
-    if ! type ask >/dev/null 2>&1; then
-      _te_error "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
-    else
-      _te_call_ask "$_te_dir"
-      code=$?
-      output=$(cat "$_te_dir/out")
-      if [ -f "$_te_dir/timed-out" ]; then
-        _te_error "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
-      elif [ $code -ne 0 ]; then
-        _te_error "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
-      elif [ ${#_te_asserts[@]} -eq 0 ]; then
-        _te_fail "nothing grades this test case: add contains, matches, expect or judge under it"
+    # bash's time keyword, not a clock command: two per run (perl on macOS's bash 3.2) were most of tinyeval's own time.
+    { time {
+      [ ! -f "$_te_dir/timed-out" ] || rm "$_te_dir/timed-out"
+      if ! type ask >/dev/null 2>&1; then
+        _te_error "define ask in $_te_file: it gets the input as \$1 and on stdin, and prints the reply"
       else
-        for a in "${_te_asserts[@]}"; do eval "$a"; done
+        _te_call_ask "$_te_dir"
+        code=$?
+        output=$(<"$_te_dir/out")
+        if [ -f "$_te_dir/timed-out" ]; then
+          _te_error "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
+        elif [ $code -ne 0 ]; then
+          _te_error "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
+        elif [ ${#_te_asserts[@]} -eq 0 ]; then
+          _te_fail "nothing grades this test case: add contains, matches, expect or judge under it"
+        else
+          for a in "${_te_asserts[@]}"; do eval "$a"; done
+        fi
       fi
-    fi
-    ms=$(($(_te_now) - started))
+    } 2>&3; } 3>&2 2>"$_te_dir/took"
+    read -r ms <"$_te_dir/took"
+    ms=$((10#${ms/[.,]/}))
     passed=true failure='' couldnt=''
     if [ -z "$_te_failures" ]; then passes=$((passes + 1)); else
       passed=false failure=",\"failure\":$(_te_json "$_te_failures")" shown_failures=$_te_failures shown_output=$output
