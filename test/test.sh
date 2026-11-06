@@ -95,6 +95,8 @@ start=$SECONDS
 out=$(./tinyeval -t 1 -o "$tmp/slow.json" test/fixtures/slow.sh 2>&1); code=$?
 ok "-t stops a slow AI call" '[ $code -eq 1 ] && [[ $out == *"ask took longer than 1s"* ]] && [ $((SECONDS - start)) -lt 5 ]'
 ok "-t prints no job notices" '[[ $out != *Terminated* ]] && [[ $out == *"reply: (empty)"* ]]'
+out=$(./tinyeval -t 2 -j 4 -o "$tmp/fast.json" test/fixtures/fast.sh 2>&1); code=$?
+ok "a fast AI call never waits out -t" '[[ $out != *Terminated* ]] && [ $code -eq 0 ] && [[ $out == *"All 200 evals passed"* ]] && ! grep -qE " [1-9][0-9]*\.[0-9]s$" <<<"$out"'
 
 start=$SECONDS
 out=$(./tinyeval -j 4 -t 291 -o "$tmp/par.json" test/fixtures/parallel.sh); code=$?

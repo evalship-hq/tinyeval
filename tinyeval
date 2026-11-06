@@ -139,7 +139,9 @@ judge() { _te_add _te_judge "$@"; }               # a model says the reply meets
 
 _te_add() {
   [ -n "$_te_name" ] || { echo "tinyeval: ${1#_te_} comes before any test_case in ${BASH_SOURCE[2]}" >&2; return 1; }
-  _te_asserts+=("$(printf '%q ' "$@")")
+  local a
+  printf -v a '%q ' "$@"
+  _te_asserts+=("$a")
 }
 
 _te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
@@ -147,7 +149,7 @@ _te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
 _te_error() { _te_errors="${_te_errors:+$_te_errors$'\n'}$*"; _te_fail "$@"; }
 
 # A line the eval file runs that isn't a command, like a misspelled contains, fails its test case instead of grading nothing.
-_te_unknown() { [ -z "$_te_name" ] || _te_asserts+=("$(printf '%q ' _te_fail "not a tinyeval line: $1")"); }
+_te_unknown() { [ -z "$_te_name" ] || _te_add _te_fail "not a tinyeval line: $1"; }
 
 # Whether $1 contains $2, ignoring case.
 _te_has() {
@@ -197,14 +199,15 @@ Does the reply meet the criterion? Answer PASS or FAIL on the first line, then o
   esac
 }
 
-# A JSON string holding $1. Drops control characters but newline and tab, so ANSI colors lose their ESC.
+# Sets the variable $1 to a JSON string holding $2, without starting a process unless $2 has control characters.
+# Drops those but newline and tab, so ANSI colors lose their ESC.
 _te_json() {
   # bs is two backslashes, not an escaped quote.
   # shellcheck disable=SC1003
-  local s bs='\\' q='\"' n='\n' t='\t'
-  case $1 in *[[:cntrl:]]*) s=$(printf '%s' "$1" | tr -d '\000-\010\013-\037') ;; *) s=$1 ;; esac
-  s=${s//\\/"$bs"} s=${s//\"/"$q"} s=${s//$'\n'/"$n"} s=${s//$'\t'/"$t"}
-  printf '"%s"' "$s"
+  local _te_s=$2 bs='\\' q='\"' n='\n' t='\t'
+  case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
+  _te_s=${_te_s//\\/"$bs"} _te_s=${_te_s//\"/"$q"} _te_s=${_te_s//$'\n'/"$n"} _te_s=${_te_s//$'\t'/"$t"}
+  printf -v "$1" '"%s"' "$_te_s"
 }
 
 # The string value of the last "KEY": "..." in JSON on stdin, still escaped.
@@ -214,7 +217,7 @@ _te_json_get() { tr -d '\n' | sed -nE 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"(([
 # Prints the judge model's answer to $1, or why there is none and returns 1.
 _te_ask_judge() {
   if [ -n "${TINYEVAL_JUDGE:-}" ]; then printf '%s' "$1" | sh -c "$TINYEVAL_JUDGE"; return; fi
-  local url=${TINYEVAL_JUDGE_URL:-} key=${TINYEVAL_JUDGE_KEY:-} model=${TINYEVAL_JUDGE_MODEL:-} res content
+  local url=${TINYEVAL_JUDGE_URL:-} key=${TINYEVAL_JUDGE_KEY:-} model=${TINYEVAL_JUDGE_MODEL:-} res content jmodel jprompt
   if [ -z "$url" ]; then
     if [ -n "${OPENROUTER_API_KEY:-}" ]; then
       url=https://openrouter.ai/api/v1 key=${key:-$OPENROUTER_API_KEY} model=${model:-anthropic/claude-haiku-5.5}
@@ -231,7 +234,9 @@ _te_ask_judge() {
   # The key goes in a header file, not the command line, so it doesn't show in ps.
   (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_dir/auth")
   # --retry waits out 429 and 5xx replies. -o, because on stdout each retry's reply would add to the last one.
-  if ! res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$(_te_json "$model")" "$(_te_json "$1")" |
+  _te_json jmodel "$model"
+  _te_json jprompt "$1"
+  if ! res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$jmodel" "$jprompt" |
     curl -sS --retry 3 --max-time 120 -o "$_te_dir/judge.json" "${url%/}/chat/completions" -H "@$_te_dir/auth" \
       -H 'Content-Type: application/json' --data-binary @- 2>&1) || ! res=$(cat "$_te_dir/judge.json"); then
     echo "$res"; return 1
@@ -251,8 +256,7 @@ _te_run_case() {
   if [ -z "$_te_only" ] || _te_has "$_te_name" "$_te_only"; then
     _te_n=$((_te_n + 1))
     local dir="$_te_tmp/$_te_i.$_te_n"
-    mkdir "$dir"
-    _te_case "$dir" >"$dir/printed" &
+    { mkdir "$dir" && _te_case "$dir" >"$dir/printed"; } &
     _te_pids+=("$!")
     _te_dirs+=("$dir")
     while [ ${#_te_pids[@]} -ge "$_te_jobs" ]; do _te_collect; done
@@ -260,12 +264,15 @@ _te_run_case() {
   _te_name=
 }
 
+# cat without starting a process, as tinyeval's main loop needs two per test case.
+_te_cat() { local l; while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l"; done <"$1"; }
+
 # Waits for the oldest running test case, then prints it and keeps its results.
 _te_collect() {
   wait "${_te_pids[0]}"
   [ -n "$_te_header" ] || { echo "$_te_suite"; _te_header=1; }
-  cat "${_te_dirs[0]}/printed"
-  cat "${_te_dirs[0]}/results.jsonl" >>"$_te_tmp/results.jsonl"
+  _te_cat "${_te_dirs[0]}/printed"
+  _te_cat "${_te_dirs[0]}/results.jsonl" >>"$_te_tmp/results.jsonl"
   _te_pids=("${_te_pids[@]:1}")
   _te_dirs=("${_te_dirs[@]:1}")
 }
@@ -278,10 +285,9 @@ _te_call_ask() {
   ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" 3>&- &
   pid=$!
   (
-    # jobs, not $!: on Git Bash the stop often lands before $! is saved, which left the sleep running.
-    trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
-    sleep "$_te_timeout" &
-    wait $!
+    # A second at a time, with no trap to stop a long sleep: a stop that came before the trap was set waited out -t.
+    s=0
+    while [ $s -lt "$_te_timeout" ]; do sleep 1; s=$((s + 1)); done
     : >"$dir/timed-out"
     # Git Bash: end the Windows process tree, which takes native programs like python.exe with it.
     if [ -r "/proc/$pid/winpid" ]; then taskkill //F //T //PID "$(cat "/proc/$pid/winpid")"; fi
@@ -300,8 +306,10 @@ _te_call_ask() {
 _te_case() {
   _te_dir=$1
   local i=1 passes=0 errors=0 ms code a passed failure couldnt shown_failures shown_output TIMEFORMAT=%3R
-  local suite key file
-  suite=$(_te_json "$_te_suite") key=$(_te_json "$_te_name") file=$(_te_json "$_te_file")
+  local suite key file jinput joutput
+  _te_json suite "$_te_suite"
+  _te_json key "$_te_name"
+  _te_json file "$_te_file"
   : >"$_te_dir/results.jsonl"
   while [ $i -le "$_te_runs" ]; do
     _te_failures='' _te_errors='' output=''
@@ -313,7 +321,9 @@ _te_case() {
       else
         _te_call_ask "$_te_dir"
         code=$?
-        output=$(<"$_te_dir/out")
+        # read, not $(<file), which starts a process; $() drops the trailing newlines, so this does too.
+      IFS= read -r -d '' output <"$_te_dir/out"
+      while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
         if [ -f "$_te_dir/timed-out" ]; then
           _te_error "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
         elif [ $code -ne 0 ]; then
@@ -329,15 +339,19 @@ _te_case() {
     ms=$((10#${ms/[.,]/}))
     passed=true failure='' couldnt=''
     if [ -z "$_te_failures" ]; then passes=$((passes + 1)); else
-      passed=false failure=",\"failure\":$(_te_json "$_te_failures")" shown_failures=$_te_failures shown_output=$output
+      _te_json failure "$_te_failures"
+      passed=false failure=",\"failure\":$failure" shown_failures=$_te_failures shown_output=$output
       # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
       if [ "$_te_failures" = "$_te_errors" ]; then
-        errors=$((errors + 1)) couldnt=",\"metadata\":{\"couldnt_run\":$(_te_json "$_te_errors")}"
+        _te_json couldnt "$_te_errors"
+        errors=$((errors + 1)) couldnt=",\"metadata\":{\"couldnt_run\":$couldnt}"
       fi
     fi
+    _te_json jinput "$input"
+    _te_json joutput "$output"
     # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
     printf '{"suite":%s,"key":%s,"passed":%s,"file":%s,"duration_ms":%s,"input":%s,"output":%s%s%s}\n' \
-      "$suite" "$key" "$passed" "$file" "$ms" "$(_te_json "$input")" "$(_te_json "$output")" "$failure" "$couldnt" \
+      "$suite" "$key" "$passed" "$file" "$ms" "$jinput" "$joutput" "$failure" "$couldnt" \
       >>"$_te_dir/results.jsonl"
     i=$((i + 1))
   done
@@ -345,7 +359,7 @@ _te_case() {
   # Runs that couldn't run don't count toward the majority.
   local mark="${_te_g}✓" count="" ran=$((_te_runs - errors))
   [ "$_te_runs" -gt 1 ] && count=" $passes/$ran"
-  [ "$_te_runs" -eq 1 ] && count=" $(printf '%d.%ds' $((ms / 1000)) $((ms % 1000 / 100)))"
+  [ "$_te_runs" -eq 1 ] && printf -v count ' %d.%ds' $((ms / 1000)) $((ms % 1000 / 100))
   [ "$errors" -eq 0 ] || count="$count, $errors couldn't run"
   if [ "$ran" -eq 0 ]; then mark="${_te_y}!" count=" couldn't run"
   elif [ $((passes * 2)) -lt "$ran" ]; then mark="${_te_r}✗"
