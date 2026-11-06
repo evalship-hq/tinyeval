@@ -112,6 +112,16 @@ out=$(PATH="$(dirname "$real_jq"):$PATH" ./tinyeval -o "$tmp/json.json" test/fix
 ok "json: passes and fails on the filter" '[ $code -eq 1 ] && [[ $out == *"1 of 2 evals failed"* ]] && [[ $out == *"json: .category == \"transfer\" is false"* ]]'
 out=$(PATH="$(dirname "$real_jq"):$PATH" ./tinyeval -o "$tmp/notjson.json" test/fixtures/notjson.sh 2>&1); code=$?
 ok "json: a reply that isn't JSON fails" '[ $code -eq 1 ] && [[ $out == *"1 of 1 evals failed"* ]] && [[ $out == *"json: "* ]]'
+out=$(PATH="$(dirname "$real_jq"):$PATH" ./tinyeval -o "$tmp/problems.json" test/fixtures/problems.sh 2>&1); code=$?
+ok "problems: an empty list passes, each item fails" '[ $code -eq 1 ] && [[ $out == *"4 of 5 evals failed"* ]] && jqr -e ".evals[1].failure == \"tweet 2 has a hashtag\nquotes \$59, not an input price\" and .evals[2].failure == \"description is empty\"" "$tmp/problems.json" >/dev/null'
+ok "problems: a misspelled field or a reply that isn't JSON fails" '[[ $out == *"problems: .problem is null, not a list"* ]] && jqr -e ".evals[4].failure | startswith(\"problems: \")" "$tmp/problems.json" >/dev/null'
+out=$(./tinyeval -o "$tmp/checks.json" -x "$tmp/checks.xml" test/fixtures/checks.sh 2>&1); code=$?
+ok "check: one reply, an eval per check" '[ $code -eq 1 ] && [ "$(jqr -c "[.evals[] | [.key, .passed]]" "$tmp/checks.json")" = "[[\"braise\",true],[\"braise / servings\",true],[\"braise / units\",false],[\"only checks / coverage\",true],[\"only checks / nothing\",false],[\"down\",false],[\"down / servings\",false]]" ]'
+ok "check: a check with no lines fails, and an AI call that broke can't run any" '[[ $out == *"2 of 7 evals failed, 2 couldn'"'"'t run"* ]] && [[ $out == *"nothing grades this check"* ]] && jqr -e "[.evals[] | select(.metadata.couldnt_run) | .key] == [\"down\", \"down / servings\"]" "$tmp/checks.json" >/dev/null'
+ok "check: a testcase each in JUnit" '[ "$(grep -c "<testcase " "$tmp/checks.xml")" -eq 7 ] && grep -q "name=\"braise / units\"" "$tmp/checks.xml"'
+out=$(./tinyeval -n 3 -o "$tmp/checks3.json" test/fixtures/checks.sh 2>&1)
+ok "check: -n 3 gives each check 3 runs" '[ "$(jqr "[.evals[] | select(.key | startswith(\"braise\"))] | length" "$tmp/checks3.json")" -eq 9 ] && [[ $out == *"✗ units 0/3"* ]]'
+ok "target: kept in the results file"'jqr -e ".evals[0].targets == [\"app/bot.rb#reply\", \"src/tags.ts#generateTags\"] and .evals[1].targets == null" "$tmp/problems.json" >/dev/null'
 
 out=$(./tinyeval -o "$tmp/x.json" -x "$tmp/junit.xml" test/fixtures/basics.sh test/fixtures/failing.sh 2>&1)
 ok "-x: JUnit XML with a testsuite per file" '[ "$(grep -c "<testsuite " "$tmp/junit.xml")" -eq 2 ] && [ "$(grep -c "<testcase " "$tmp/junit.xml")" -eq "$(jqr ".evals | length" "$tmp/x.json")" ]'

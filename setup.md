@@ -39,6 +39,7 @@ Write 5 to 10 test cases from realistic inputs: the common case, the edge cases 
 - `contains`, `not_contains`, `matches` and `equals` for facts and wording.
 - `json 'FILTER'` for JSON replies and tool calls: passes when jq's FILTER is true, like `json '.category == "transfer"'`.
 - `expect COMMAND` for other structure: any command or bash function that gets the reply on stdin and exits 0 when it's right.
+- `problems '.problems'` when the app already has checks in its own language: the worker runs them and returns their problems with the reply.
 - `judge "CRITERION"` for qualities a reader has to judge. One criterion per line, concrete enough that two people would agree.
 
 Long inputs go in a heredoc:

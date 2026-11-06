@@ -91,6 +91,7 @@ The lines under a test case grade its reply. It passes when all of them pass.
 | `matches REGEX` | matches the extended regex |
 | `equals TEXT` | is exactly TEXT |
 | `json FILTER` | is JSON, and jq's FILTER is true for it |
+| `problems FILTER` | is JSON, and jq's FILTER gives an empty list |
 | `expect COMMAND...` | makes COMMAND exit 0 when piped into it |
 | `judge CRITERION` | meets CRITERION, as a model reads it |
 
@@ -100,6 +101,29 @@ The lines under a test case grade its reply. It passes when all of them pass.
 expect python3 evals/sql_parses.py          # your own grader
 short() { [ "$(wc -w)" -lt 80 ] || echo "over 80 words"; }
 expect short
+```
+
+Checks written in your app's language can run in the worker, once per reply. The worker returns them with the reply, and `problems` fails with each one:
+
+```bash
+worker npx tsx evals/worker.ts   # replies {"tags": [...], "problems": ["tag 3 is generic"]}
+
+test_case "three headphones" '{"call": "tags", "category": "Headphones"}'
+  target src/services/tags.ts#generateProductTags
+  problems .problems
+```
+
+`target` names the code a test case covers. It grades nothing, and the results file keeps it.
+
+**check NAME** makes the lines after it a separate eval of the same reply, named "TEST CASE / NAME". One AI call then shows as several evals, each passing or failing on its own:
+
+```bash
+test_case "duck fesenjan" "$(cat evals/recipes/duck-fesenjan.txt)"
+  json '.completed'
+check servings
+  json '.servings == 4'
+check units
+  not_contains "cups"
 ```
 
 For a chat feature, give the conversation so far and grade the last reply:
