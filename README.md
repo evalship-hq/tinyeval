@@ -69,18 +69,7 @@ while (input = $stdin.gets("\0"))
 end
 ```
 
-```python
-# evals/worker.py, for: worker python3 evals/worker.py
-import sys
-from app.bot import reply
-
-rest = b""
-while chunk := sys.stdin.buffer.read1(65536):
-    *inputs, rest = (rest + chunk).split(b"\0")
-    for input in inputs:
-        sys.stdout.write(reply(input.decode()) + "\0")
-        sys.stdout.flush()
-```
+Tested workers for Python, JavaScript, Go, Rust, PHP, Java, Kotlin, C#, Elixir, Swift, Dart, Perl and Lua are in [examples/workers](examples/workers/).
 
 A worker that stops or takes longer than `-t` starts again for the next test case.
 
