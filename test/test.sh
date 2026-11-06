@@ -171,6 +171,23 @@ cp tinyeval "$tmp/up/tinyeval"
 (cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/broken") ./tinyeval update >/dev/null 2>&1); code=$?
 ok "update: keeps the file when the download isn't tinyeval" '[ $code -eq 2 ] && cmp -s tinyeval "$tmp/up/tinyeval" && [ ! -e "$tmp/up/tinyeval.download" ]'
 
+# A fake curl answers for evalship.com as its share API does: the body, then -w's status code.
+mkdir "$tmp/fakecurl" && cat >"$tmp/fakecurl/curl" <<'SH' && chmod +x "$tmp/fakecurl/curl"
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$SHARE_ARGS"
+printf '%s\n\n%s' "$SHARE_BODY" "$SHARE_CODE"
+SH
+share() { PATH="$tmp/fakecurl:$PATH" SHARE_ARGS="$tmp/share.args" ./tinyeval share "$@"; }
+summary="$tmp/share-summary.md"
+out=$(GITHUB_STEP_SUMMARY=$summary SHARE_CODE=201 SHARE_BODY=$'Shared 6 evals: https://evalship.com/r/abc\nAnyone with the link can see them.' share "$tmp/basics.json"); code=$?
+ok "share: prints the link" '[ $code -eq 0 ] && [ "$out" = "$(printf "Shared 6 evals: https://evalship.com/r/abc\nAnyone with the link can see them.")" ]'
+ok "share: sends the file as tinyeval" 'grep -qx "@$tmp/basics.json" "$tmp/share.args" && grep -qx "tinyeval/$version" "$tmp/share.args" && grep -qx "https://evalship.com/api/v1/shares" "$tmp/share.args"'
+ok "share: links them in the job summary" 'grep -qx "Shared results: https://evalship.com/r/abc" "$summary"'
+out=$(SHARE_CODE=429 SHARE_BODY="Retry later" share "$tmp/basics.json" 2>&1); code=$?
+ok "share: says why it couldn't" '[ $code -eq 2 ] && [ "$out" = "tinyeval: couldn'"'"'t share $tmp/basics.json: Retry later" ]'
+out=$(cd "$tmp" && "$here/tinyeval" share 2>&1); code=$?
+ok "share: needs a results file" '[ $code -eq 2 ] && [[ $out == *"no eval-results.json to share"* ]]'
+
 # The update check runs only in a terminal, which script gives. Git Bash has no script.
 tty_run() { if [ "$(uname)" = Darwin ]; then script -q /dev/null "$@"; else script -qc "$(printf '%q ' "$@")" /dev/null; fi </dev/null; }
 if command -v script >/dev/null && ! command -v cygpath >/dev/null; then

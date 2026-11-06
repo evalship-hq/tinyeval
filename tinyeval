@@ -5,6 +5,7 @@
 _te_version=0.5.0
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [eval files...]
        tinyeval update
+       tinyeval share [file]
 
 Runs every test case in the eval files (default: evals/*.sh) and writes the
 results to eval-results.json. Exits 1 when an eval fails or couldn't run
@@ -18,6 +19,8 @@ results to eval-results.json. Exits 1 when an eval fails or couldn't run
   -x file     also write them as JUnit XML, which most CI systems show
   -v          print the version
   update      replace this file with the latest release
+  share       put the results (default: eval-results.json) behind a private
+              link on evalship.com for 30 days, with their inputs and replies
 
 An eval file is bash. It defines ask, then lists test cases, each followed
 by the lines that grade its reply:
@@ -64,6 +67,23 @@ if [ "${1-}" = update ]; then
   chmod +x "$_te_new" && mv -f "$_te_new" "$0" || exit 2
   if [ -d .git ] && [ "$0" -ef ./tinyeval ]; then _te_commit=" Commit it with your code."; fi
   echo "Updated $0 from $_te_version to $_te_latest.${_te_commit-}"
+  exit 0
+fi
+
+# A private link to the results on evalship.com, like a secret gist, for whoever you send it to.
+if [ "${1-}" = share ]; then
+  _te_file=${2:-eval-results.json}
+  [ -f "$_te_file" ] || { echo "tinyeval: no $_te_file to share. Run tinyeval first, or name a results file" >&2; exit 2; }
+  _te_said=$(curl -sS -m 60 -w '\n%{http_code}' -A "tinyeval/$_te_version" -H 'Accept: text/plain' \
+    -H 'Content-Type: application/octet-stream' --data-binary @"$_te_file" \
+    "${TINYEVAL_SHARE_URL:-https://evalship.com/api/v1/shares}" 2>&1)
+  _te_code=${_te_said##*$'\n'} _te_said=${_te_said%$'\n'*}
+  _te_said=${_te_said%$'\n'}
+  [ "$_te_code" = 201 ] || { echo "tinyeval: couldn't share $_te_file: $_te_said" >&2; exit 2; }
+  printf '%s\n' "$_te_said"
+  # The first line ends with the link.
+  _te_url=${_te_said%%$'\n'*}
+  [ -z "${GITHUB_STEP_SUMMARY-}" ] || printf '\nShared results: %s\n' "${_te_url##* }" >>"$GITHUB_STEP_SUMMARY"
   exit 0
 fi
 
