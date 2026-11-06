@@ -55,6 +55,35 @@ ask() { python3 -m app.answer "$1"; }                         # Python
 ask() { curl -s localhost:3000/api/chat --data-binary @-; }   # a running server
 ```
 
+**worker COMMAND** keeps your AI call running instead, so a slow-starting app, like a Rails app, starts once per `-j` rather than for every call. It reads each input up to a NUL byte on stdin, and prints the reply and a NUL byte:
+
+```bash
+worker bin/rails runner evals/worker.rb
+```
+
+```ruby
+# evals/worker.rb
+$stdout.sync = true
+while (input = $stdin.gets("\0"))
+  print Bot.reply(input.chomp("\0")), "\0"
+end
+```
+
+```python
+# evals/worker.py, for: worker python3 evals/worker.py
+import sys
+from app.bot import reply
+
+rest = b""
+while chunk := sys.stdin.buffer.read1(65536):
+    *inputs, rest = (rest + chunk).split(b"\0")
+    for input in inputs:
+        sys.stdout.write(reply(input.decode()) + "\0")
+        sys.stdout.flush()
+```
+
+A worker that stops or takes longer than `-t` starts again for the next test case.
+
 **test_case NAME [INPUT]** starts a test case. Long input goes in a heredoc:
 
 ```bash
@@ -72,13 +101,13 @@ The lines under a test case grade its reply. It passes when all of them pass.
 | `not_contains TEXT` | doesn't contain TEXT, ignoring case |
 | `matches REGEX` | matches the extended regex |
 | `equals TEXT` | is exactly TEXT |
+| `json FILTER` | is JSON, and jq's FILTER is true for it |
 | `expect COMMAND...` | makes COMMAND exit 0 when piped into it |
 | `judge CRITERION` | meets CRITERION, as a model reads it |
 
-`expect` takes any command or bash function. What it prints on a failure becomes the reason.
+`json '.category == "transfer"'` checks structured output and tool calls. It needs jq, which macOS and GitHub's runners come with. `expect` takes any command or bash function. What it prints on a failure becomes the reason.
 
 ```bash
-expect jq -e '.items | length > 0'          # JSON with items
 expect python3 evals/sql_parses.py          # your own grader
 short() { [ "$(wc -w)" -lt 80 ] || echo "over 80 words"; }
 expect short
@@ -130,10 +159,11 @@ When the API answers with a rate limit or a server error, the judge waits and tr
 | Flag | Does |
 |---|---|
 | `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed; runs that couldn't run don't count |
-| `-j 4` | runs 4 test cases at once; output stays in file order |
+| `-j 8` | runs 8 test cases at once (default: 4); output stays in file order. `-j 1` is for an AI call that can't run alongside itself |
 | `-t 60` | stops an AI call after 60 seconds (default: 300) |
 | `-k refund` | runs only the test cases whose name contains "refund" |
 | `-o file` | writes the results there instead of `eval-results.json` |
+| `-x file` | also writes them as JUnit XML, which GitLab, Jenkins and CircleCI show with their tests |
 
 The same input can get a different reply each time, so `-n 3` is worth its cost.
 
@@ -165,7 +195,7 @@ This replaces `./tinyeval` with the latest release. Commit it. In a terminal, ti
 
 ## In CI
 
-tinyeval exits 1 when an eval fails or couldn't run, so any CI can run it. On GitHub Actions:
+tinyeval exits 1 when an eval fails or couldn't run, so any CI can run it. On GitHub Actions, the run's summary page lists what failed:
 
 ```yaml
 name: Evals
@@ -175,7 +205,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: ./tinyeval -n 3 -j 4
+      - run: ./tinyeval -n 3
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
@@ -196,17 +226,18 @@ A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
 
 We ran the same suites in promptfoo and Braintrust, each installed from a cold cache on an M2 MacBook on 2026-11-05 and 06. [bench/](bench/) has the setups and the scripts.
 
-| | tinyeval 0.4.3 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
+| | tinyeval 0.5.0 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
 |---|---|---|---|
 | Needs | bash and curl | Node 22.22 or later | Python, and `openai` for judges |
-| Install | 20 KB, 1 file, 0.2–6 s | 690 MB, 614 packages, 38–63 s | 65 MB, 35 packages, 7–10 s |
+| Install | 28 KB, 1 file, 0.2–6 s | 690 MB, 614 packages, 38–63 s | 65 MB, 35 packages, 7–11 s |
 | Startup | 0.01 s | 0.8 s | 0.2 s |
 | [examples/support.sh](examples/support.sh) | 9 lines | 22 lines, plus a 1-line script | 30 lines |
 | 200 test cases, instant AI call | 1.3 s | 1.9 s | 1.0 s |
 | 40 test cases, 3 runs, 1 s AI call | 15.5 s | 16.6 s | 15.7 s |
 | Install, then those 40 test cases | 16 s | 54 s | 23 s |
+| 20 test cases, 3 runs, an app that takes 2 s to start | 11.4 s | 25.5 s | 24.7 s |
 
-With real AI calls, suite speed is a tie: 120 calls of a second, 8 at once, take 15 seconds at least, and all three finish within 2 of that. The difference is the install, on a CI runner without a dependency cache. The speed rows give all three the same script as the AI call and a regex check, 4 and then 8 at once, and take the fastest of 3 tries. The support suite, with Haiku 5.5 answering and judging, took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
+With real AI calls, suite speed is a tie: 120 calls of a second, 8 at once, take 15 seconds at least, and all three finish within 2 of that. The difference is the install, on a CI runner without a dependency cache, and an app that's slow to start: tinyeval's `worker` keeps it running, while promptfoo's exec provider and our Braintrust task start it for each call. Both avoid that by calling a running server, and Braintrust by calling a Python app in-process. The speed rows give all three the same script as the AI call and a regex check, 4 and then 8 at once, and take the fastest of 3 tries. The support suite, with Haiku 5.5 answering and judging, took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
 
 tinyeval has no viewer, reply cache or hosted datasets: its results are one JSON file. Pick promptfoo for red teaming or comparing many providers side by side. Pick Braintrust for a hosted place to compare experiments and keep datasets. Raindrop is a hosted product that monitors AI features in production, not an eval runner, so it isn't in the table.
 
@@ -215,7 +246,7 @@ tinyeval has no viewer, reply cache or hosted datasets: its results are one JSON
 A fresh CI run has no last run to compare with. [evalship](https://evalship.com) reads `eval-results.json` as is. It compares each pull request with main, tells flaky evals from real drops and comments on the pull request. Connect your repo on [evalship.com](https://evalship.com), then upload the file:
 
 ```yaml
-      - run: ./tinyeval -n 3 -j 4
+      - run: ./tinyeval -n 3
         continue-on-error: true   # evalship's check is the gate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

@@ -30,14 +30,15 @@ ask() { cargo run -q --bin summarize -- "$1"; }
 ask() { curl -s localhost:3000/api/summarize --data-binary @-; }
 ```
 
-If no entry point takes one input and prints the reply, add a small script that calls the production function, for example `script/eval_summarize`. Never copy the prompt into the eval: the eval must break when the real prompt or model changes. Print JSON replies as JSON. Read keys from the environment variables the app already uses.
+If no entry point takes one input and prints the reply, add a small script that calls the production function, for example `script/eval_summarize`. When the app takes seconds to start, as a Rails or Django app does, use `worker COMMAND` instead of `ask`: tinyeval keeps COMMAND running, one per `-j`, and sends it each input up to a NUL byte on stdin. It prints each reply and a NUL byte, and flushes; the README has Ruby and Python examples. Never copy the prompt into the eval: the eval must break when the real prompt or model changes. Print JSON replies as JSON. Read keys from the environment variables the app already uses.
 
 ## 4. Write test cases
 
 Write 5 to 10 test cases from realistic inputs: the common case, the edge cases the code handles, and anything that went wrong before (check comments, issues and commit messages). Grade each reply with the lines that state what must be true:
 
 - `contains`, `not_contains`, `matches` and `equals` for facts and wording.
-- `expect COMMAND` for structure: any command or bash function that gets the reply on stdin and exits 0 when it's right.
+- `json 'FILTER'` for JSON replies and tool calls: passes when jq's FILTER is true, like `json '.category == "transfer"'`.
+- `expect COMMAND` for other structure: any command or bash function that gets the reply on stdin and exits 0 when it's right.
 - `judge "CRITERION"` for qualities a reader has to judge. One criterion per line, concrete enough that two people would agree.
 
 Long inputs go in a heredoc:
@@ -53,7 +54,7 @@ For a chat feature, the input is the conversation so far, in the shape the code 
 
 ## 5. Run
 
-Run `./tinyeval -n 3 -j 4`: three runs per test case, four test cases at once. `judge` needs `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (plus `TINYEVAL_JUDGE_MODEL`); ask the user for one if none is set.
+Run `./tinyeval -n 3`: three runs per test case, four test cases at once. `judge` needs `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (plus `TINYEVAL_JUDGE_MODEL`); ask the user for one if none is set.
 
 For each failing test case, decide whether the eval or the feature is wrong. Fix a wrong eval. Leave an eval that catches a real bug failing, and don't change the feature unless the user asks.
 
@@ -72,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # the app's setup steps go here
-      - run: ./tinyeval -n 3 -j 4
+      - run: ./tinyeval -n 3
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
@@ -86,7 +87,7 @@ Add this section to the repo's AGENTS.md, or to its CLAUDE.md if that's the only
 
 The AI features have evals in `evals/`, run by `./tinyeval`. `./tinyeval -h` lists what an eval file can use.
 
-- After you change a prompt, a model or an AI call, run `./tinyeval -n 3 -j 4` and fix what broke. `-k NAME` runs only the test cases whose name contains NAME.
+- After you change a prompt, a model or an AI call, run `./tinyeval -n 3` and fix what broke. `-k NAME` runs only the test cases whose name contains NAME.
 - When you add an AI feature or change what one should do, add or update its test cases.
 - Leave an eval that catches a real bug failing; don't loosen it to pass.
 - `./tinyeval update` installs the latest tinyeval. Commit the new `./tinyeval`.

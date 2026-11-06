@@ -3,6 +3,8 @@
 # and each test case has one regex check, so the times are the runners' own:
 #   overhead:  200 test cases, 1 run, 4 at once, an AI call that answers at once
 #   parallel:  40 test cases, 3 runs, 8 at once, an AI call that takes 1 second, like a model (15 s at best)
+#   boot:      20 test cases, 3 runs, 8 at once, an app that takes 2 s to start, then 1 s to answer. tinyeval keeps it
+#              running with worker; promptfoo's exec provider and the Braintrust task start it for each call.
 # Installs each into a temp folder first and times that, as a fresh CI runner would. Needs Node 22.22 or later and
 # python3. The runs use ../tinyeval; its install time is the released file's download.
 set -eu
@@ -37,13 +39,15 @@ python3 -m venv "$w/bt"
 "$w/bt/bin/pip" install --no-cache-dir -q $braintrust
 echo "install Braintrust: $(since "$t")"
 
-# run NAME CASES RUNS JOBS DELAY
+# run NAME CASES RUNS JOBS DELAY [BOOT]
 run() {
-  local d="$w/$1" n=$2 runs=$3 jobs=$4
+  local d="$w/$1" n=$2 runs=$3 jobs=$4 boot=${6:-0}
   mkdir -p "$d/evals"
-  printf 'sleep %s\necho "Sorry, refunds are only possible within 30 days."\n' "$5" >"$d/ask.sh"
+  printf 'sleep %s\nsleep %s\necho "Sorry, refunds are only possible within 30 days."\n' "$boot" "$5" >"$d/ask.sh"
+  printf 'sleep %s\nwhile IFS= read -r -d "" q; do sleep %s; printf "%%s\\0" "Sorry, refunds are only possible within 30 days."; done\n' \
+    "$boot" "$5" >"$d/worker.sh"
 
-  { printf 'ask() { sh %q "$1"; }\n' "$d/ask.sh"
+  { if [ "$boot" = 0 ]; then printf 'ask() { sh %q "$1"; }\n' "$d/ask.sh"; else printf 'worker bash %q\n' "$d/worker.sh"; fi
     printf 'i=1\nwhile [ $i -le %s ]; do\n  test_case "case $i" "Can I return item $i?"\n    matches "30[- ]day"\n  i=$((i + 1))\ndone\n' "$n"
   } >"$d/evals/speed.sh"
   { echo q; i=1; while [ "$i" -le "$n" ]; do echo "Can I return item $i?"; i=$((i + 1)); done; } >"$d/cases.csv"
@@ -58,7 +62,7 @@ Eval("speed", data=lambda: [{"input": f"Can I return item {i}?"} for i in range(
      trial_count=$runs, max_concurrency=$jobs)
 PY
 
-  echo "$1: $n test cases, $runs run(s) each, $jobs at once, AI call $5 s (the fastest of 3)"
+  echo "$1: $n test cases, $runs run(s) each, $jobs at once, AI call $5 s, start $boot s (the fastest of 3)"
   echo "  tinyeval:   $(best te) ($(tail -1 "$d/te.out" | sed 's/ (.*//'))"
   echo "  promptfoo:  $(best pf) ($(grep -m 1 'passed (' "$d/pf.out" | sed 's/^[^0-9]*//'))"
   echo "  Braintrust: $(best bt) ($(grep -m 1 'score$' "$d/bt.out"))"
@@ -74,3 +78,4 @@ bt() { cd "$d" && "$w/bt/bin/braintrust" eval --no-send-logs eval_speed.py >"$d/
 
 run overhead 200 1 4 0
 run parallel 40 3 8 1
+run boot 20 3 8 1 2

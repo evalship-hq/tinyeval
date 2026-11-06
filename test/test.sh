@@ -77,7 +77,7 @@ ok "a misspelled line fails its test case" '[ $code -eq 1 ] && [[ $out == *"not 
 ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"2 of 3 evals failed"* ]]'
 
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
-ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask in test/fixtures/noask.sh"* ]]'
+ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'
 
 ./tinyeval -o "$tmp/x.json" test/fixtures/empty.sh >/dev/null 2>&1; code=$?
 ok "no test cases exits 2" '[ $code -eq 2 ]'
@@ -97,6 +97,31 @@ ok "-t stops a slow AI call" '[ $code -eq 1 ] && [[ $out == *"ask took longer th
 ok "-t prints no job notices" '[[ $out != *Terminated* ]] && [[ $out == *"reply: (empty)"* ]]'
 out=$(./tinyeval -t 2 -j 4 -o "$tmp/fast.json" test/fixtures/fast.sh 2>&1); code=$?
 ok "a fast AI call never waits out -t" '[[ $out != *Terminated* ]] && [ $code -eq 0 ] && [[ $out == *"All 200 evals passed"* ]] && ! grep -qE " [1-9][0-9]*\.[0-9]s$" <<<"$out"'
+
+out=$(./tinyeval -j 1 -o "$tmp/worker.json" test/fixtures/worker.sh 2>&1); code=$?
+ok "worker: one process answers every input" '[ $code -eq 0 ] && [[ $out == *"All 3 evals passed"* ]]'
+out=$(./tinyeval -j 2 -o "$tmp/worker2.json" test/fixtures/worker.sh 2>&1); code=$?
+ok "worker: one per -j" '[ $code -eq 1 ] && [ "$(jqr "[.evals[] | select(.passed)] | length" "$tmp/worker2.json")" -eq 1 ]'
+start=$SECONDS
+out=$(./tinyeval -j 1 -t 2 -o "$tmp/breaks.json" test/fixtures/worker_breaks.sh 2>&1); code=$?
+ok "worker: a crash couldn't run, with its stderr" '[[ $out == *"the worker stopped: out of memory"* ]]'
+ok "worker: a hang stops at -t" '[[ $out == *"the worker took longer than 2s"* ]] && [ $((SECONDS - start)) -lt 10 ]'
+ok "worker: a new one after each" '[ $code -eq 1 ] && [[ $out == *"2 of 4 evals couldn'"'"'t run"* ]] && jqr -e "[.evals[] | select(.passed) | .key] == [\"after a crash\", \"after a hang\"]" "$tmp/breaks.json" >/dev/null'
+
+out=$(PATH="$(dirname "$real_jq"):$PATH" ./tinyeval -o "$tmp/json.json" test/fixtures/json.sh 2>&1); code=$?
+ok "json: passes and fails on the filter" '[ $code -eq 1 ] && [[ $out == *"1 of 2 evals failed"* ]] && [[ $out == *"json: .category == \"transfer\" is false"* ]]'
+out=$(PATH="$(dirname "$real_jq"):$PATH" ./tinyeval -o "$tmp/notjson.json" test/fixtures/notjson.sh 2>&1); code=$?
+ok "json: a reply that isn't JSON fails" '[ $code -eq 1 ] && [[ $out == *"1 of 1 evals failed"* ]] && [[ $out == *"json: "* ]]'
+
+out=$(./tinyeval -o "$tmp/x.json" -x "$tmp/junit.xml" test/fixtures/basics.sh test/fixtures/failing.sh 2>&1)
+ok "-x: JUnit XML with a testsuite per file" '[ "$(grep -c "<testsuite " "$tmp/junit.xml")" -eq 2 ] && [ "$(grep -c "<testcase " "$tmp/junit.xml")" -eq "$(jqr ".evals | length" "$tmp/x.json")" ]'
+ok "-x: failures and couldn't run" 'grep -q "<failure message=" "$tmp/junit.xml" && grep -q "<error message=" "$tmp/junit.xml" && grep -q "<testsuites tests=" "$tmp/junit.xml"'
+if command -v xmllint >/dev/null; then ok "-x: well-formed" 'xmllint --noout "$tmp/junit.xml"'; fi
+
+out=$(GITHUB_STEP_SUMMARY="$tmp/summary.md" ./tinyeval -o "$tmp/s.json" test/fixtures/failing.sh 2>&1)
+ok "job summary: heading and a row per failing test case" 'grep -q "^### tinyeval: " "$tmp/summary.md" && [ "$(grep -c "^| [✗!] |" "$tmp/summary.md")" -ge 2 ]'
+GITHUB_STEP_SUMMARY="$tmp/summary2.md" ./tinyeval -o "$tmp/s2.json" test/fixtures/basics.sh >/dev/null 2>&1
+ok "job summary: one line when all pass" '[ "$(cat "$tmp/summary2.md")" = "### tinyeval: All 6 evals passed" ]'
 
 start=$SECONDS
 out=$(./tinyeval -j 4 -t 291 -o "$tmp/par.json" test/fixtures/parallel.sh); code=$?
