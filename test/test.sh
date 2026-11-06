@@ -116,10 +116,11 @@ ok "json: a reply that isn't JSON fails" '[ $code -eq 1 ] && [[ $out == *"1 of 1
 out=$(./tinyeval -o "$tmp/x.json" -x "$tmp/junit.xml" test/fixtures/basics.sh test/fixtures/failing.sh 2>&1)
 ok "-x: JUnit XML with a testsuite per file" '[ "$(grep -c "<testsuite " "$tmp/junit.xml")" -eq 2 ] && [ "$(grep -c "<testcase " "$tmp/junit.xml")" -eq "$(jqr ".evals | length" "$tmp/x.json")" ]'
 ok "-x: failures and couldn't run" 'grep -q "<failure message=" "$tmp/junit.xml" && grep -q "<error message=" "$tmp/junit.xml" && grep -q "<testsuites tests=" "$tmp/junit.xml"'
-if command -v xmllint >/dev/null; then ok "-x: well-formed" 'xmllint --noout "$tmp/junit.xml"'; fi
+# On stdin, as Git Bash's xmllint is a Windows program that can't open /tmp paths.
+if command -v xmllint >/dev/null; then ok "-x: well-formed" 'xmllint --noout - <"$tmp/junit.xml"'; fi
 
 out=$(GITHUB_STEP_SUMMARY="$tmp/summary.md" ./tinyeval -o "$tmp/s.json" test/fixtures/failing.sh 2>&1)
-ok "job summary: heading and a row per failing test case" 'grep -q "^### tinyeval: " "$tmp/summary.md" && [ "$(grep -c "^| [✗!] |" "$tmp/summary.md")" -ge 2 ]'
+ok "job summary: heading and a row per failing test case" 'grep -q "^### tinyeval: " "$tmp/summary.md" && [ "$(grep -cE "^\| (✗|!) \|" "$tmp/summary.md")" -ge 2 ]'
 GITHUB_STEP_SUMMARY="$tmp/summary2.md" ./tinyeval -o "$tmp/s2.json" test/fixtures/basics.sh >/dev/null 2>&1
 ok "job summary: one line when all pass" '[ "$(cat "$tmp/summary2.md")" = "### tinyeval: All 6 evals passed" ]'
 

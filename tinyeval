@@ -328,10 +328,11 @@ _te_worker_up() {
 }
 
 _te_worker_down() {
-  eval "exec $((20 + 2 * $1))>&- $((21 + 2 * $1))<&-"
-  pkill -TERM -P "${_te_wpids[$1]}" 2>/dev/null
-  kill "${_te_wpids[$1]}" 2>/dev/null
-  wait "${_te_wpids[$1]}" 2>/dev/null
+  local s=$1
+  eval "exec $((20 + 2 * s))>&- $((21 + 2 * s))<&-"
+  pkill -TERM -P "${_te_wpids[$s]}" 2>/dev/null
+  kill "${_te_wpids[$s]}" 2>/dev/null
+  wait "${_te_wpids[$s]}" 2>/dev/null
 }
 
 # Sends the input to this test case's worker; its reply goes to output. A worker that stops or takes longer than -t
@@ -339,17 +340,18 @@ _te_worker_down() {
 # shortcut: this test case's later runs couldn't run then; restart here if -n runs need them.
 # shortcut: an input larger than a pipe holds (16 KB or more) waits on the worker without -t.
 _te_worker_ask() {
-  local s=$_te_slot w="$_te_tmp/$_te_i.w$_te_slot"
+  local s=$_te_slot w="$_te_tmp/$_te_i.w$_te_slot" started=$SECONDS
+  local to=$((20 + 2 * _te_slot)) from=$((21 + 2 * _te_slot))
   if [ -f "$w.broken" ]; then _te_error "the worker stopped on an earlier run"; return; fi
   trap '' PIPE # a worker that stopped is an error here, not the end of the test case
-  if printf '%s\0' "$input" >&"$((20 + 2 * s))" 2>/dev/null &&
-    IFS= read -r -d '' -t "$_te_timeout" -u "$((21 + 2 * s))" output; then
+  if printf '%s\0' "$input" 1>&"$to" 2>/dev/null && IFS= read -r -d '' -t "$_te_timeout" -u "$from" output; then
     trap - PIPE
     return
   fi
   trap - PIPE
   : >"$w.broken"
-  if kill -0 "${_te_wpids[$s]}" 2>/dev/null; then
+  # By the time, as read fails the same way for both, and Git Bash shows a stopped worker as running for a while.
+  if [ $((SECONDS - started)) -ge "$_te_timeout" ]; then
     local why="took longer than ${_te_timeout}s"
     [ -z "$output" ] || why="didn't end its reply with a NUL byte within ${_te_timeout}s"
     _te_error "the worker $why, so tinyeval stopped it (-t sets the limit)"
@@ -523,6 +525,7 @@ for _te_f in "$@"; do
     while [ ${#_te_pids[@]} -gt 0 ]; do _te_collect; done
     for _te_s in "${!_te_wpids[@]}"; do _te_worker_down "$_te_s"; done
     if [ -n "$_te_junit" ] && [ -f "$_te_tmp/$_te_i.junit" ]; then
+      # shellcheck disable=SC2154 # _te_xml sets it
       _te_xml _te_sx "$_te_suite"
       printf '  <testsuite name="%s" tests="%s" failures="%s" errors="%s">\n' "$_te_sx" \
         "$(grep -c '<testcase ' "$_te_tmp/$_te_i.junit")" "$(grep -c '<failure ' "$_te_tmp/$_te_i.junit")" \
