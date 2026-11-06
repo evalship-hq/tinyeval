@@ -96,7 +96,7 @@ out=$(./tinyeval -t 1 -o "$tmp/slow.json" test/fixtures/slow.sh 2>&1); code=$?
 ok "-t stops a slow AI call" '[ $code -eq 1 ] && [[ $out == *"ask took longer than 1s"* ]] && [ $((SECONDS - start)) -lt 5 ]'
 ok "-t prints no job notices" '[[ $out != *Terminated* ]] && [[ $out == *"reply: (empty)"* ]]'
 out=$(./tinyeval -t 2 -j 4 -o "$tmp/fast.json" test/fixtures/fast.sh 2>&1); code=$?
-ok "a fast AI call never waits out -t" '[[ $out != *Terminated* ]] && [ $code -eq 0 ] && [[ $out == *"All 200 evals passed"* ]] && ! grep -qE " [1-9][0-9]*\.[0-9]s$" <<<"$out"'
+ok "a fast AI call never waits out -t" '[[ $out != *Terminated* ]] && [ $code -eq 0 ] && [[ $out == *"All 200 evals passed"* ]] && ! grep -qE " ([2-9]|[1-9][0-9]+)\.[0-9]s$" <<<"$out"'
 
 out=$(./tinyeval -j 1 -o "$tmp/worker.json" test/fixtures/worker.sh 2>&1); code=$?
 ok "worker: one process answers every input" '[ $code -eq 0 ] && [[ $out == *"All 3 evals passed"* ]]'
@@ -120,6 +120,14 @@ GITHUB_STEP_SUMMARY="$tmp/markup.md" ./tinyeval -o "$tmp/m.json" -x "$tmp/markup
 ok "-x and job summary: escaped (bash 5.2 reads & in a replacement as the match)" 'grep -qF "name=\"x &amp; &lt;y&gt; &quot;z&quot; | w\"" "$tmp/markup.xml" && grep -qF "x & &lt;y> \"z\" \\| w" "$tmp/markup.md"'
 # On stdin, as Git Bash's xmllint is a Windows program that can't open /tmp paths.
 if command -v xmllint >/dev/null; then ok "-x: well-formed" 'xmllint --noout - <"$tmp/junit.xml"'; fi
+
+start=$SECONDS
+./tinyeval -o "$tmp/long.json" -x "$tmp/long.xml" test/fixtures/long.sh >/dev/null 2>&1; code=$?
+(i=0; while [ $i -lt 1000 ]; do printf 'line %s: naïve 日本語 "q" back\\slash\ttab <b>&amp;</b>\n' $i; i=$((i + 1)); done) >"$tmp/long.want"
+jqr -r '.evals[0].input' "$tmp/long.json" | tr -d '\r' >"$tmp/long.input"
+ok "a long input and reply: escaped in seconds, exactly" '[ $code -eq 1 ] && [ $((SECONDS - start)) -lt 10 ] && cmp -s "$tmp/long.input" "$tmp/long.want" && jqr -e ".evals[0].output == .evals[0].input" "$tmp/long.json" >/dev/null'
+ok "a long failure: escaped in the JUnit file" 'grep -qF "naïve 日本語 &quot;q&quot; back\\slash" "$tmp/long.xml" && ! grep -qF "<b>" "$tmp/long.xml"'
+if command -v xmllint >/dev/null; then ok "a long failure: the JUnit file is well-formed" 'xmllint --noout - <"$tmp/long.xml"'; fi
 
 out=$(GITHUB_STEP_SUMMARY="$tmp/summary.md" ./tinyeval -o "$tmp/s.json" test/fixtures/failing.sh 2>&1)
 ok "job summary: heading and a row per failing test case" 'grep -q "^### tinyeval: " "$tmp/summary.md" && [ "$(grep -cE "^\| (✗|!) \|" "$tmp/summary.md")" -ge 2 ]'

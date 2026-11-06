@@ -244,9 +244,15 @@ Does the reply meet the criterion? Answer PASS or FAIL on the first line, then o
 _te_json() {
   # bs is two backslashes, not an escaped quote.
   # shellcheck disable=SC1003
-  local _te_s=$2 bs='\\' q='\"' n='\n' t='\t'
+  local _te_s=$2 bs='\\' q='\"' n='\n' t='\t' tab=$'\t'
   case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
-  _te_s=${_te_s//\\/"$bs"} _te_s=${_te_s//\"/"$q"} _te_s=${_te_s//$'\n'/"$n"} _te_s=${_te_s//$'\t'/"$t"}
+  # bash 3.2 takes seconds to substitute in tens of KB, so sed and awk escape a long text.
+  if [ ${#_te_s} -gt 2000 ]; then
+    _te_s=$(printf '%s\n' "$_te_s" | LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/$tab/\\\\t/g" |
+      LC_ALL=C awk 'NR > 1 { printf "%s", "\\n" } { printf "%s", $0 }')
+  else
+    _te_s=${_te_s//\\/"$bs"} _te_s=${_te_s//\"/"$q"} _te_s=${_te_s//$'\n'/"$n"} _te_s=${_te_s//$'\t'/"$t"}
+  fi
   # shellcheck disable=SC2089 # it sets the variable named in $1, which is always quoted where it's used
   printf -v "$1" '"%s"' "$_te_s"
 }
@@ -256,7 +262,11 @@ _te_xml() {
   # Quoted, as bash 5.2 reads an unquoted & in a replacement as the text it matched.
   local _te_s=$2 amp='&amp;' lt='&lt;' gt='&gt;' quot='&quot;'
   case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
-  _te_s=${_te_s//&/"$amp"} _te_s=${_te_s//</"$lt"} _te_s=${_te_s//>/"$gt"} _te_s=${_te_s//\"/"$quot"}
+  if [ ${#_te_s} -gt 2000 ]; then # as in _te_json
+    _te_s=$(printf '%s\n' "$_te_s" | LC_ALL=C sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g')
+  else
+    _te_s=${_te_s//&/"$amp"} _te_s=${_te_s//</"$lt"} _te_s=${_te_s//>/"$gt"} _te_s=${_te_s//\"/"$quot"}
+  fi
   printf -v "$1" '%s' "$_te_s"
 }
 
