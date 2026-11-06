@@ -116,6 +116,8 @@ ok "json: a reply that isn't JSON fails" '[ $code -eq 1 ] && [[ $out == *"1 of 1
 out=$(./tinyeval -o "$tmp/x.json" -x "$tmp/junit.xml" test/fixtures/basics.sh test/fixtures/failing.sh 2>&1)
 ok "-x: JUnit XML with a testsuite per file" '[ "$(grep -c "<testsuite " "$tmp/junit.xml")" -eq 2 ] && [ "$(grep -c "<testcase " "$tmp/junit.xml")" -eq "$(jqr ".evals | length" "$tmp/x.json")" ]'
 ok "-x: failures and couldn't run" 'grep -q "<failure message=" "$tmp/junit.xml" && grep -q "<error message=" "$tmp/junit.xml" && grep -q "<testsuites tests=" "$tmp/junit.xml"'
+GITHUB_STEP_SUMMARY="$tmp/markup.md" ./tinyeval -o "$tmp/m.json" -x "$tmp/markup.xml" test/fixtures/markup.sh >/dev/null 2>&1
+ok "-x and job summary: escaped (bash 5.2 reads & in a replacement as the match)" 'grep -qF "name=\"x &amp; &lt;y&gt; &quot;z&quot; | w\"" "$tmp/markup.xml" && grep -qF "x & &lt;y> \"z\" \\| w" "$tmp/markup.md"'
 # On stdin, as Git Bash's xmllint is a Windows program that can't open /tmp paths.
 if command -v xmllint >/dev/null; then ok "-x: well-formed" 'xmllint --noout - <"$tmp/junit.xml"'; fi
 
