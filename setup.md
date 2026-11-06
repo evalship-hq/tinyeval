@@ -16,6 +16,8 @@ It's one bash file that needs only bash and curl, and it gets committed with the
 
 ## 2. Find the AI features
 
+If the repo already has evals, move them instead: follow `curl -fsSL https://raw.githubusercontent.com/evalship-hq/tinyeval/main/migrate.md`, then come back for step 7.
+
 Search the code for LLM calls: SDK clients (openai, anthropic, google-genai, ruby_llm, langchain and the like), HTTP calls to model APIs, prompt files and templates. For each, note its entry point, its prompt and what users get from it. Start with the feature users depend on most. If that isn't clear, ask the user.
 
 ## 3. Write ask
