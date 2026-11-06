@@ -186,7 +186,9 @@ $output
 
 Does the reply meet the criterion? Answer PASS or FAIL on the first line, then one sentence on why.") ||
     { _te_error "judge couldn't run: $reply"; return; }
-  verdict=$(printf '%s\n' "$reply" | grep -m 1 -oE 'PASS|FAIL')
+  # The first word of the first line, after markdown or a label like "Verdict:", so "does not PASS" isn't a pass.
+  verdict=$(printf '%s\n' "$reply" | awk 'NF { sub(/^[^[:alnum:]]+/, ""); sub(/^[[:alpha:]]+:[^[:alnum:]]*/, "")
+    if ($0 ~ /^(PASS|FAIL)([^[:alnum:]]|$)/) print substr($0, 1, 4); exit }')
   reply=$(printf '%s' "$reply" | tr '\n' ' ' | sed -E 's/^[^A-Z]*(PASS|FAIL)[^[:alnum:]]*//' | cut -c 1-300)
   case $verdict in
     PASS) ;;

@@ -57,6 +57,13 @@ api '{"error":{"message":"Invalid API key","code":401}}'
 out=$(judge); code=$?
 ok "judge API: error message shown" '[ $code -eq 1 ] && [[ $out == *"judge couldn'"'"'t run: Invalid API key"* ]] && [[ $out == *"1 of 1 evals couldn'"'"'t run"* ]]'
 
+api '{"choices":[{"message":{"role":"assistant","content":"The reply does not PASS: it approves the refund."}}]}'
+out=$(judge); code=$?
+ok "judge API: \"does not PASS\" is no pass" '[ $code -eq 1 ] && [[ $out == *"judge gave no PASS or FAIL"* ]]'
+api '{"choices":[{"message":{"role":"assistant","content":"Verdict: **PASS**\nIt declines."}}]}'
+out=$(judge); code=$?
+ok "judge API: a labeled verdict passes" '[ $code -eq 0 ]'
+
 export COUNTER="$tmp/counter"
 out=$(./tinyeval -n 3 -o "$tmp/flaky.json" test/fixtures/flaky.sh); code=$?
 ok "flaky: 2 of 3 passes" '[ $code -eq 0 ] && [[ $out == *"mostly yes"*"2/3"* ]]'
