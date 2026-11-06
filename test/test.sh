@@ -80,6 +80,11 @@ ok "a second test case with a name gets a number and fails" '[[ $out == *"graded
 out=$(./tinyeval -o "$tmp/loop.json" test/fixtures/loop.sh 2>/dev/null); code=$?
 ok "a loop reading into input keeps each test case's own input" '[ $code -eq 0 ] && jqr -e "[.evals[].input] == [\"first\", \"second\"]" "$tmp/loop.json" >/dev/null'
 
+out=$(./tinyeval -o "$tmp/headers.json" test/fixtures/headers.sh 2>/dev/null); code=$?
+ok "#tinyeval couldnt_run: the run couldn't run" '[[ $out == *"! rate limited couldn'"'"'t run"* ]] && jqr -e ".evals[0].metadata.couldnt_run == \"429 rate limited\"" "$tmp/headers.json" >/dev/null'
+ok "#tinyeval cost_usd: on the test case's own eval only, and not in the graded reply" 'jqr -e "[.evals[1:3][] | .cost_usd] == [0.0000125, null] and .evals[1].output == \"{\\\"answer\\\": 42}\"" "$tmp/headers.json" >/dev/null'
+ok "a misspelled #tinyeval line fails" '[ $code -eq 1 ] && [[ $out == *"not a #tinyeval line: cost 1"* ]]'
+
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'
 

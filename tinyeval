@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.7.0
+_te_version=0.8.0
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [eval files...]
        tinyeval update
        tinyeval share [file]
@@ -28,6 +28,8 @@ by the lines that grade its reply:
   ask() { ruby bin/answer.rb; }   the AI call: input as \$1 and on stdin, reply on stdout
   worker COMMAND...               or keep COMMAND running, one per -j: it reads each
                                   input up to a NUL byte and prints the reply and a NUL
+                                  A reply may start with #tinyeval couldnt_run REASON
+                                  or #tinyeval cost_usd DOLLARS lines
   test_case NAME [INPUT]          starts a test case; without INPUT it reads a heredoc
   contains TEXT                   the reply contains TEXT, ignoring case
   not_contains TEXT               the reply doesn't contain TEXT, ignoring case
@@ -456,7 +458,7 @@ _te_call_ask() {
 # A check line starts another eval on the same reply, keyed "TEST CASE / NAME".
 _te_case() {
   _te_dir=$1
-  local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt TIMEFORMAT=%3R
+  local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt cost h jcost TIMEFORMAT=%3R
   local suite key file jinput joutput targets='' t jt name=$_te_name
   local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=()
   for a in ${_te_asserts[@]+"${_te_asserts[@]}"}; do
@@ -491,6 +493,19 @@ _te_case() {
         fi
       fi
       while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
+      # Lines at the reply's start for tinyeval, not graded: "#tinyeval couldnt_run REASON" when the AI call broke (a
+      # 429 the app caught), "#tinyeval cost_usd DOLLARS" for what the call cost.
+      cost=''
+      while [[ $output == "#tinyeval "* ]]; do
+        h=${output%%$'\n'*} h=${h#\#tinyeval }
+        if [[ $output == *$'\n'* ]]; then output=${output#*$'\n'}; else output=''; fi
+        case $h in
+          "couldnt_run "*) _te_error "${h#couldnt_run }" ;;
+          "cost_usd "*) cost=${h#cost_usd }
+            [[ $cost =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || { _te_fail "#tinyeval cost_usd is a number of dollars, not \"$cost\""; cost=''; } ;;
+          *) _te_fail "not a #tinyeval line: $h (couldnt_run REASON or cost_usd DOLLARS)" ;;
+        esac
+      done
       # The AI call's errors are every eval's; a grading line's are its own eval's.
       asked=$_te_errors g=0
       for a in ${_te_asserts[@]+"${_te_asserts[@]}"} "#check "; do
@@ -522,9 +537,11 @@ _te_case() {
         fi
       fi
       _te_json key "${keys[g]}"
+      # The call's cost goes on one eval only, so a test case's checks don't count it again.
+      jcost='' && [ -z "$cost" ] || [ $g -ne $first ] || jcost=",\"cost_usd\":$cost"
       # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
-      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s,"input":%s,"output":%s%s%s}\n' \
-        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jinput" "$joutput" "$failure" "$couldnt" \
+      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s}\n' \
+        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" \
         >>"$_te_dir/results.jsonl"
       g=$((g + 1))
     done

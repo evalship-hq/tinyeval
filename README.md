@@ -71,7 +71,7 @@ end
 
 Tested workers for Python, JavaScript, Go, Rust, PHP, Java, Kotlin, C#, Elixir, Swift, Dart, Perl and Lua are in [examples/workers](examples/workers/).
 
-A worker that stops or takes longer than `-t` starts again for the next test case.
+A worker that stops or takes longer than `-t` starts again for the next test case. Test cases go to the workers in turn: with `-j 3`, the 1st, 4th and 7th go to the first one, so test cases that alternate between kinds give each worker the same kind.
 
 **test_case NAME [INPUT]** starts a test case. Each in a file needs its own NAME, since the results are keyed by it. Long input goes in a heredoc:
 
@@ -189,6 +189,13 @@ The same input can get a different reply each time, so `-n 3` is worth its cost.
 
 When the AI call fails or times out, or the judge can't answer, the run says nothing about the reply. tinyeval counts it apart from the failures and leaves it out of Since the last run. It still exits 1.
 
+A worker has no exit code, and an app may catch its own errors. To say a run couldn't run, start the reply with a line `#tinyeval couldnt_run REASON`. A line `#tinyeval cost_usd DOLLARS` records what the call cost. tinyeval reads these lines and grades the rest of the reply:
+
+```ruby
+rescue RateLimited => e
+  print "#tinyeval couldnt_run #{e.message}\n", "\0"
+```
+
 ## Since the last run
 
 tinyeval writes `eval-results.json` and compares each run with the one before it:
@@ -233,7 +240,7 @@ jobs:
 ]}
 ```
 
-A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
+A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`, and one whose reply said its cost has `"cost_usd"`.
 
 ## Share results
 
@@ -263,6 +270,8 @@ We ran the same suites in promptfoo and Braintrust, each installed from a cold c
 With real AI calls, suite speed is a tie: 120 calls of a second, 8 at once, take 15 seconds at least, and all three finish within 2 of that. The difference is the install, on a CI runner without a dependency cache, and an app that's slow to start: tinyeval's `worker` keeps it running, while promptfoo's exec provider and our Braintrust task start it for each call. Both avoid that by calling a running server, and Braintrust by calling a Python app in-process. The speed rows give all three the same script as the AI call and a regex check, 4 and then 8 at once, and take the fastest of 3 tries. The support suite, with Haiku 5.5 answering and judging, took 8 to 10 seconds in tinyeval and Braintrust, nearly all of it model calls. Braintrust ran locally with `--no-send-logs`, without an account. promptfoo's judge didn't run: its `llm-rubric` sends `temperature`, which Claude Haiku 5.5 rejects ([promptfoo#12163](https://github.com/promptfoo/promptfoo/issues/12163)). With Claude Opus 5.5 or Sonnet 5.5 as the judge, it runs.
 
 tinyeval has no viewer, reply cache or hosted datasets: its results are one JSON file. Pick promptfoo for red teaming or comparing many providers side by side. Pick Braintrust for a hosted place to compare experiments and keep datasets. Raindrop is a hosted product that monitors AI features in production, not an eval runner, so it isn't in the table.
+
+To move evals you already have, with their names and checks, give your coding agent [migrate.md](migrate.md).
 
 ## Compare pull requests with main
 
