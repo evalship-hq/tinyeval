@@ -77,6 +77,9 @@ ok "a misspelled line fails its test case" '[ $code -eq 1 ] && [[ $out == *"not 
 ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"3 of 4 evals failed"* ]]'
 ok "a second test case with a name gets a number and fails" '[[ $out == *"graded #2"*"another test case in this file is named \"graded\""* ]] && jqr -e "[.evals[].key] == [\"misspelled\", \"no lines\", \"graded\", \"graded #2\"]" "$tmp/typo.json" >/dev/null'
 
+out=$(./tinyeval -o "$tmp/loop.json" test/fixtures/loop.sh 2>/dev/null); code=$?
+ok "a loop reading into input keeps each test case's own input" '[ $code -eq 0 ] && jqr -e "[.evals[].input] == [\"first\", \"second\"]" "$tmp/loop.json" >/dev/null'
+
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'
 

@@ -155,7 +155,7 @@ test_case() {
   local next_input
   if [ $# -ge 2 ]; then next_input=$2; else next_input=$(cat); fi
   _te_run_case
-  _te_name=$1 _te_file=${BASH_SOURCE[1]} _te_asserts=() _te_targets=() input=$next_input
+  _te_name=$1 _te_file=${BASH_SOURCE[1]} _te_asserts=() _te_targets=() _te_input=$next_input
   # Test cases with one name would merge into one eval, so a later one gets a number and fails.
   local n=1
   while [[ $_te_names == *$'\n'"$_te_name"$'\n'* ]]; do n=$((n + 1)); _te_name="$1 #$n"; done
@@ -254,7 +254,7 @@ Criterion: $1
 
 The input it got:
 <input>
-$input
+$_te_input
 </input>
 
 Its reply:
@@ -411,7 +411,7 @@ _te_worker_ask() {
   local to=$((20 + 2 * _te_slot)) from=$((21 + 2 * _te_slot))
   if [ -f "$w.broken" ]; then _te_error "the worker stopped on an earlier run"; return; fi
   trap '' PIPE # a worker that stopped is an error here, not the end of the test case
-  if printf '%s\0' "$input" 1>&"$to" 2>/dev/null && IFS= read -r -d '' -t "$_te_timeout" -u "$from" output; then
+  if printf '%s\0' "$_te_input" 1>&"$to" 2>/dev/null && IFS= read -r -d '' -t "$_te_timeout" -u "$from" output; then
     trap - PIPE
     return
   fi
@@ -432,7 +432,7 @@ _te_worker_ask() {
 _te_call_ask() {
   local dir=$1 pid watchdog code
   # 3>&-: a child left running after a timeout would hold the time keyword's stderr open, and so the caller's.
-  ask "$input" <<<"$input" >"$dir/out" 2>"$dir/err" 3>&- &
+  ask "$_te_input" <<<"$_te_input" >"$dir/out" 2>"$dir/err" 3>&- &
   pid=$!
   (
     # A second at a time, with no trap to stop a long sleep: a stop that came before the trap was set waited out -t.
@@ -507,7 +507,7 @@ _te_case() {
     } 2>&3; } 3>&2 2>"$_te_dir/took"
     read -r ms <"$_te_dir/took"
     ms=$((10#${ms/[.,]/})) total_ms=$((total_ms + ms))
-    _te_json jinput "$input"
+    _te_json jinput "$_te_input"
     _te_json joutput "$output"
     g=$first
     while [ $g -lt ${#keys[@]} ]; do
