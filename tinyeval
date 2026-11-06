@@ -207,6 +207,7 @@ _te_json() {
   local _te_s=$2 bs='\\' q='\"' n='\n' t='\t'
   case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
   _te_s=${_te_s//\\/"$bs"} _te_s=${_te_s//\"/"$q"} _te_s=${_te_s//$'\n'/"$n"} _te_s=${_te_s//$'\t'/"$t"}
+  # shellcheck disable=SC2089 # it sets the variable named in $1, which is always quoted where it's used
   printf -v "$1" '"%s"' "$_te_s"
 }
 
@@ -406,7 +407,7 @@ for _te_f in "$@"; do
     _te_run_case
     while [ ${#_te_pids[@]} -gt 0 ]; do _te_collect; done
   ) </dev/null &
-  wait $!
+  wait "$!"
 done
 
 _te_statuses <"$_te_tmp/results.jsonl" | _te_majority >"$_te_tmp/now"
