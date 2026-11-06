@@ -211,6 +211,16 @@ jobs:
 
 A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
 
+## Share results
+
+```sh
+tinyeval share
+```
+
+This prints a private link to the results on evalship.com, failing evals first, with each input and reply. Send it to a teammate, or paste it into an issue. Anyone with the link can open it without an account, and search engines don't index it. It's deleted after 30 days, or sooner with the command `share` prints. In GitHub Actions, the run's summary page links it too.
+
+`tinyeval share` sends `eval-results.json` and nothing else. `tinyeval share junit.xml` sends another results file instead, such as JUnit XML or promptfoo's JSON.
+
 ## Other eval tools
 
 We ran the same suites in promptfoo and Braintrust, each installed from a cold cache on an M2 MacBook on 2026-11-05 and 06. [bench/](bench/) has the setups and the scripts.
