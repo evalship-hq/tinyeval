@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.4.2
+_te_version=0.4.3
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [eval files...]
        tinyeval update
 

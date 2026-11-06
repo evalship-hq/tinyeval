@@ -196,7 +196,7 @@ A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`.
 
 We ran the same suites in promptfoo and Braintrust, each installed from a cold cache on an M2 MacBook on 2026-11-05 and 06. [bench/](bench/) has the setups and the scripts.
 
-| | tinyeval 0.4.2 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
+| | tinyeval 0.4.3 | promptfoo 0.125.1 | Braintrust 0.49.2 (Python) |
 |---|---|---|---|
 | Needs | bash and curl | Node 22.22 or later | Python, and `openai` for judges |
 | Install | 20 KB, 1 file, 0.2–6 s | 690 MB, 614 packages, 38–63 s | 65 MB, 35 packages, 7–10 s |
