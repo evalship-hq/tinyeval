@@ -74,7 +74,8 @@ ok "flaky: one entry per run" '[ "$(jqr "[.evals[] | select(.passed)] | length" 
 
 out=$(./tinyeval -o "$tmp/typo.json" test/fixtures/typo.sh 2>/dev/null); code=$?
 ok "a misspelled line fails its test case" '[ $code -eq 1 ] && [[ $out == *"not a tinyeval line: contians"* ]]'
-ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"2 of 3 evals failed"* ]]'
+ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"3 of 4 evals failed"* ]]'
+ok "a second test case with a name gets a number and fails" '[[ $out == *"graded #2"*"another test case in this file is named \"graded\""* ]] && jqr -e "[.evals[].key] == [\"misspelled\", \"no lines\", \"graded\", \"graded #2\"]" "$tmp/typo.json" >/dev/null'
 
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'

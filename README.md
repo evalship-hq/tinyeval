@@ -73,7 +73,7 @@ Tested workers for Python, JavaScript, Go, Rust, PHP, Java, Kotlin, C#, Elixir, 
 
 A worker that stops or takes longer than `-t` starts again for the next test case.
 
-**test_case NAME [INPUT]** starts a test case. Long input goes in a heredoc:
+**test_case NAME [INPUT]** starts a test case. Each in a file needs its own NAME, since the results are keyed by it. Long input goes in a heredoc:
 
 ```bash
 test_case "missing package" <<'EOF'

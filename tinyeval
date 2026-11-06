@@ -156,6 +156,11 @@ test_case() {
   if [ $# -ge 2 ]; then next_input=$2; else next_input=$(cat); fi
   _te_run_case
   _te_name=$1 _te_file=${BASH_SOURCE[1]} _te_asserts=() _te_targets=() input=$next_input
+  # Test cases with one name would merge into one eval, so a later one gets a number and fails.
+  local n=1
+  while [[ $_te_names == *$'\n'"$_te_name"$'\n'* ]]; do n=$((n + 1)); _te_name="$1 #$n"; done
+  _te_names+="$_te_name"$'\n'
+  [ $n -eq 1 ] || _te_add _te_fail "another test case in this file is named \"$1\". Give each its own name"
 }
 
 contains() { _te_add _te_contains "$@"; }         # the reply contains TEXT, ignoring case
@@ -609,7 +614,7 @@ for _te_f in "$@"; do
   # A subshell per file, so one file's ask doesn't leak into the next. In the background, because bash runs
   # the INT/TERM trap during wait but not while a foreground command runs.
   (
-    _te_name='' _te_n=0 _te_header=''
+    _te_name='' _te_n=0 _te_header='' _te_names=$'\n'
     _te_pids=()
     _te_dirs=()
     trap '[ $? -ne 127 ] || _te_unknown "$BASH_COMMAND"' ERR
