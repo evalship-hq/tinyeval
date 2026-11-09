@@ -99,6 +99,11 @@ ok "calls: none written, none kept" 'jqr -e ".evals[4] | has(\"calls\") | not" "
 ok "calls: the reply's own cost_usd wins" 'jqr -e ".evals[5].cost_usd == 0.5" "$tmp/calls.json" >/dev/null'
 ./tinyeval -j 1 -o "$tmp/wcalls.json" test/fixtures/worker_calls.sh >/dev/null 2>&1
 ok "calls: a worker's are each test case's own" 'jqr -e "[.evals[].calls | map(.call)] == [[\"one\"], [\"two\"]]" "$tmp/wcalls.json" >/dev/null'
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces OTEL_RESOURCE_ATTRIBUTES=service.name=shop ./tinyeval -n 2 -o "$tmp/otel.json" test/fixtures/otel.sh >/dev/null 2>&1
+ok "otel: each run's spans carry its eval's otel id, after the app's own attributes" 'jqr -e "[.evals[] | .output == \"service.name=shop,evalship.eval=\" + .otel] | all" "$tmp/otel.json" >/dev/null'
+ok "otel: one id per run of a test case, its checks sharing it" 'jqr -e "[.evals[].otel] | length == 6 and .[0] == .[1] and (unique | length) == 4" "$tmp/otel.json" >/dev/null'
+./tinyeval -o "$tmp/nootel.json" test/fixtures/otel.sh >/dev/null 2>&1
+ok "otel: no OTLP endpoint, no tag" 'jqr -e "[.evals[] | has(\"otel\")] | any | not" "$tmp/nootel.json" >/dev/null'
 
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'

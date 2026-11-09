@@ -143,6 +143,10 @@ if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   curl -fsSL -m 5 "$_te_download" 2>/dev/null | sed -n 's/^_te_version=//p' >"$_te_tmp/latest" &
   _te_check_pid=$!
 fi
+# With an OTLP endpoint set, each run of ask tags its OpenTelemetry spans with its eval's otel id (_te_case), this
+# tinyeval run's part being the temp dir's random suffix.
+_te_otel='' _te_otel_attrs=${OTEL_RESOURCE_ATTRIBUTES-}
+[ -z "${OTEL_EXPORTER_OTLP_ENDPOINT-}${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT-}" ] || _te_otel=${_te_tmp##*.}
 # Background test cases ignore Ctrl-C, as bash's background jobs do, so stop the whole process group.
 _te_stop() {
   trap '' TERM
@@ -503,7 +507,7 @@ _te_case() {
   _te_dir=$1
   local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt cost h jcost TIMEFORMAT=%3R
   local suite key file jinput joutput targets='' t jt name=$_te_name
-  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls
+  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls otel jotel=''
   # Where the app may write its AI calls: this test case's own file, or its worker slot's (_te_worker_up).
   local calls_file="$_te_dir/calls"
   [ ${#_te_worker[@]} -eq 0 ] || calls_file="$_te_tmp/$_te_i.w$_te_slot.calls"
@@ -521,6 +525,11 @@ _te_case() {
   : >"$_te_dir/results.jsonl"
   while [ $i -le "$_te_runs" ]; do
     _te_failures='' _te_errors='' output=''
+    # shortcut: a worker reads OTEL_RESOURCE_ATTRIBUTES once, so only ask's spans are tagged; tag a worker's by slot and time if asked.
+    if [ -n "$_te_otel" ] && [ ${#_te_worker[@]} -eq 0 ]; then
+      otel="$_te_otel.${_te_dir##*/}.$i" && jotel=",\"otel\":\"$otel\""
+      export OTEL_RESOURCE_ATTRIBUTES="${_te_otel_attrs:+$_te_otel_attrs,}evalship.eval=$otel"
+    fi
     # bash's time keyword, not a clock command: two per run (perl on macOS's bash 3.2) were most of tinyeval's own time.
     { time {
       [ ! -f "$_te_dir/timed-out" ] || rm "$_te_dir/timed-out"
@@ -590,8 +599,8 @@ _te_case() {
       # The call's cost goes on one eval only, so a test case's checks don't count it again.
       jcost='' && [ -z "$cost" ] || [ $g -ne $first ] || jcost=",\"cost_usd\":$cost"
       # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
-      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s%s}\n' \
-        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" "$jcalls" \
+      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s%s%s}\n' \
+        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" "$jcalls" "$jotel" \
         >>"$_te_dir/results.jsonl"
       g=$((g + 1))
     done
