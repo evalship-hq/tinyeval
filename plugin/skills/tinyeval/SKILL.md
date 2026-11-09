@@ -25,13 +25,13 @@ Make sure a test case covers what the user asked for (a friendlier tone, a new f
 
 `-n 3` runs each test case three times, as the same input can get a different reply. This is the baseline: tinyeval saves it in `eval-results.json`. A new test case that fails now and passes after the change is the proof the change works.
 
-If you already made the change, put the old version back for this run (`git stash push -- <changed files>`, run, `git stash pop`). When switching models, also copy `eval-results.json` aside: each line has `duration_ms`, and `cost_usd` when the reply reports it.
+If you already made the change, put the old version back for this run (`git stash push -- <changed files>`, run, `git stash pop`). When switching models, also copy `eval-results.json` aside: each line has `duration_ms`, and `cost_usd` when the reply reports it or the app records its AI calls.
 
 ## 3. After the change
 
 Run the same command. Under "Since the last run", tinyeval lists every test case that now passes or fails.
 
-For each failure, decide whether the change or the eval is wrong. Fix the change. Change an eval only when it checks something the user no longer wants. Never loosen an eval so it passes. A test case marked `!` couldn't run (its AI call failed or timed out, or the judge couldn't answer): fix what broke, such as a missing key.
+For each failure, decide whether the change or the eval is wrong. When the app records its AI calls, the test case's line in `eval-results.json` has `calls`: what each model got and answered, so you can see which call went wrong. Fix the change. Change an eval only when it checks something the user no longer wants. Never loosen an eval so it passes. A test case marked `!` couldn't run (its AI call failed or timed out, or the judge couldn't answer): fix what broke, such as a missing key.
 
 ## 4. Report
 
