@@ -22,6 +22,6 @@
   "privacyPolicyUrl": "https://evalship.com/privacy",
   "termsOfServiceUrl": "https://evalship.com/terms",
   "experimental": {
-    "evals": "test/skill"
+    "evals": "evals"
   }
 }

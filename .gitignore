@@ -1,2 +1,3 @@
 eval-results.json
-test/skill/results/
+plugin/evals/results/
+__pycache__/
