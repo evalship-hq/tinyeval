@@ -40,7 +40,7 @@ test_case "refund after the window" "Can I return shoes that arrived 40 days ago
 
 tinyeval needs bash 3.2 or later, which macOS, most Linux and Git for Windows come with (on Alpine, `apk add bash`). `judge` also uses curl.
 
-Or start from a template repo with a support bot, its test cases and a CI workflow: [Ruby](https://github.com/evalship-hq/ruby-llm-evals), [Go](https://github.com/evalship-hq/go-llm-evals), [Rust](https://github.com/evalship-hq/rust-llm-evals), [Java](https://github.com/evalship-hq/java-llm-evals) or [PHP](https://github.com/evalship-hq/php-llm-evals).
+Or start from a template repo with a support bot, its test cases and a CI workflow: [Ruby](https://github.com/evalship-hq/ruby-llm-evals), [Go](https://github.com/evalship-hq/go-llm-evals), [Rust](https://github.com/evalship-hq/rust-llm-evals), [Java](https://github.com/evalship-hq/java-llm-evals), [Kotlin](https://github.com/evalship-hq/kotlin-llm-evals), [PHP](https://github.com/evalship-hq/php-llm-evals), [Swift](https://github.com/evalship-hq/swift-llm-evals), [Dart](https://github.com/evalship-hq/dart-llm-evals) or [Elixir](https://github.com/evalship-hq/elixir-llm-evals).
 
 ## Check every prompt change
 
