@@ -120,7 +120,8 @@ for _te_f in "$@"; do
   [ -f "$_te_f" ] || { echo "tinyeval: no eval file at $_te_f. Create one: https://github.com/evalship-hq/tinyeval#quickstart" >&2; exit 2; }
 done
 
-# In a terminal, never in CI: once a day, look up the latest release in the background. The summary names it.
+# In a terminal, once a day, look up the latest release in the background. The summary names it. GitHub Actions
+# gets its own check per run, below, for the job summary; other CI never checks.
 _te_cache=${XDG_CACHE_HOME:-$HOME/.cache}/tinyeval
 if [ -t 1 ] && [ -z "${CI-}" ]; then
   _te_check=1
@@ -138,6 +139,10 @@ _te_tmp=$(mktemp -d 2>/dev/null || mktemp -d "$PWD/.tinyeval.XXXXXX") || exit 2
 # Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
 if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
 trap 'rm -rf "$_te_tmp"' EXIT
+if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
+  curl -fsSL -m 5 "$_te_download" 2>/dev/null | sed -n 's/^_te_version=//p' >"$_te_tmp/latest" &
+  _te_check_pid=$!
+fi
 # Background test cases ignore Ctrl-C, as bash's background jobs do, so stop the whole process group.
 _te_stop() {
   trap '' TERM
@@ -740,6 +745,11 @@ fi
 if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   { echo "### tinyeval: $_te_said"
     if [ -s "$_te_tmp/summary.md" ]; then printf '\n| | Test case | Why | Reply |\n|---|---|---|---|\n'; cat "$_te_tmp/summary.md"; fi
+    wait "$_te_check_pid" 2>/dev/null # at most curl's 5 seconds, and the run has usually outlasted it
+    if _te_latest=$(cat "$_te_tmp/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
+      case $0 in ./*) _te_cmd=$0 ;; *) _te_cmd=tinyeval ;; esac
+      printf '\ntinyeval %s is out. Run %s update and commit it.\n' "$_te_latest" "$_te_cmd"
+    fi
   } >>"$GITHUB_STEP_SUMMARY"
 fi
 if [ -n "${_te_check-}" ] && _te_latest=$(cat "$_te_cache/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then

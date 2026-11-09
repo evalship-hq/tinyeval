@@ -250,7 +250,7 @@ Since the last run
 tinyeval update
 ```
 
-This replaces `./tinyeval` with the latest release. Commit it. In a terminal, tinyeval checks for a new release once a day and names it under the summary. The check downloads the latest tinyeval from GitHub and sends nothing about your evals. It never runs in CI.
+This replaces `./tinyeval` with the latest release. Commit it. In a terminal, tinyeval checks for a new release once a day and names it under the summary. On GitHub Actions, it checks on every run and names a new release in the job summary. Other CI never checks. The check downloads the latest tinyeval from GitHub and sends nothing about your evals.
 
 ## In CI
 

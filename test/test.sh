@@ -12,6 +12,8 @@ jqr() { "$real_jq" "$@"; }
 mkdir "$tmp/bin" && printf '#!/bin/sh\necho "tinyeval called jq" >&2\nexit 99\n' >"$tmp/bin/jq" && chmod +x "$tmp/bin/jq"
 export PATH="$tmp/bin:$PATH"
 export XDG_CACHE_HOME="$tmp/cache" # where the daily update check keeps the latest version
+furl() { if command -v cygpath >/dev/null; then echo "file:///$(cygpath -m "$1")"; else echo "file://$1"; fi; }
+export TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/no-release")" # the update checks stay offline; tests that want a release set it
 
 # The fake judge passes a reply that mentions "30 days" and fails any other.
 export TINYEVAL_JUDGE='input=$(cat); case $input in *"30 days"*) echo "PASS it does";; *) printf "**FAIL**\nIt approves the refund.";; esac'
@@ -188,7 +190,6 @@ out=$(./tinyeval -o "$tmp/prev.json" test/fixtures/failing.sh)
 ok "since last run: names the new failure" '[[ $out == *"Since the last run"*"failing › wrong reply fails now"* ]]'
 ok "since last run: a test case that couldn't run isn't a new failure" '[[ $out != *"ask fails fails now"* ]]'
 
-furl() { if command -v cygpath >/dev/null; then echo "file:///$(cygpath -m "$1")"; else echo "file://$1"; fi; }
 version=$(sed -n 's/^_te_version=//p' tinyeval)
 # The latest release, faked with a file: a copy of tinyeval that says it's 9.9.9.
 sed 's/^_te_version=.*/_te_version=9.9.9/' tinyeval >"$tmp/release"
@@ -238,5 +239,10 @@ if command -v script >/dev/null && ! command -v cygpath >/dev/null; then
   sleep 1
   ok "update check: never in CI" '[ ! -e "$tmp/cache/tinyeval" ]'
 fi
+
+GITHUB_STEP_SUMMARY="$tmp/summary3.md" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/s3.json" test/fixtures/basics.sh >/dev/null 2>&1
+ok "update check: the GitHub Actions job summary names the release" 'grep -qF "tinyeval 9.9.9 is out. Run ./tinyeval update and commit it." "$tmp/summary3.md"'
+GITHUB_STEP_SUMMARY="$tmp/summary4.md" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/broken")" ./tinyeval -o "$tmp/s4.json" test/fixtures/basics.sh >/dev/null 2>&1
+ok "update check: nothing in the job summary when the download fails" '[ "$(cat "$tmp/summary4.md")" = "### tinyeval: All 6 evals passed" ]'
 
 [ $fails -eq 0 ] && echo "all tests passed" || { echo "$fails failed"; exit 1; }
