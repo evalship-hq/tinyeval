@@ -214,6 +214,27 @@ rescue RateLimited => e
   print "#tinyeval couldnt_run #{e.message}\n", "\0"
 ```
 
+## AI calls
+
+```
+  ✗ refund window 1.8s
+      judge: It promises a refund after 90 days.
+      reply: Sure, we can refund that!
+      calls: classify-ticket (claude-haiku-5-5) → answer (claude-opus-5-5)
+```
+
+A reply can go wrong in any AI call your app makes on the way, not only the last one. Record each call to see what every model got and answered. tinyeval sets `TINYEVAL_CALLS` to a file for each test case, and the app adds one line of JSON per call:
+
+```ruby
+if ENV["TINYEVAL_CALLS"]
+  File.write(ENV["TINYEVAL_CALLS"], { call: "answer", model:, input: prompt, output: reply, cost: }.to_json + "\n", mode: "a")
+end
+```
+
+`call` names the call, the same each time. The rest is optional: `model`, `input`, `output`, `error`, `input_tokens`, `output_tokens`, `cost` in dollars and `duration_ms`. A tool call or agent step can be a line too, with `"kind": "tool"` or `"kind": "step"`. These are the fields [evalship](https://evalship.com) takes from production, so the app records calls the same way in both.
+
+tinyeval keeps the calls with each eval in the results file, lists them under a failing test case, and adds up their `cost` unless the reply says it with `#tinyeval cost_usd`.
+
 ## Since the last run
 
 tinyeval writes `eval-results.json` and compares each run with the one before it:
@@ -258,7 +279,7 @@ jobs:
 ]}
 ```
 
-A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`, and one whose reply said its cost has `"cost_usd"`.
+A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`, one whose reply said its cost has `"cost_usd"`, and one whose app recorded its [AI calls](#ai-calls) has `"calls"`.
 
 ## Share results
 

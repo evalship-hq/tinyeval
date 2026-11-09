@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.8.0
+_te_version=0.9.0
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [eval files...]
        tinyeval update
        tinyeval share [file]
@@ -29,7 +29,9 @@ by the lines that grade its reply:
   worker COMMAND...               or keep COMMAND running, one per -j: it reads each
                                   input up to a NUL byte and prints the reply and a NUL
                                   A reply may start with #tinyeval couldnt_run REASON
-                                  or #tinyeval cost_usd DOLLARS lines
+                                  or #tinyeval cost_usd DOLLARS lines, and the app may
+                                  add each AI call it made to the file \$TINYEVAL_CALLS
+                                  as a line of JSON: {\"call\": NAME, \"model\", \"input\", ...}
   test_case NAME [INPUT]          starts a test case; without INPUT it reads a heredoc
   contains TEXT                   the reply contains TEXT, ignoring case
   not_contains TEXT               the reply doesn't contain TEXT, ignoring case
@@ -312,6 +314,41 @@ _te_xml() {
 # shortcut: a regex, not a parser; fine for one chat completion, use jq if this ever reads more.
 _te_json_get() { tr -d '\n' | sed -nE 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p'; }
 
+# Reads the AI calls the app wrote to the file $1, one JSON object a line, as evalship's /api/v1/calls takes them:
+# _te_calls gets them joined by commas for the results file, _te_call_lines by newlines, and cost their summed "cost"
+# unless the reply said it. A line that isn't an object fails the test case and is left out, so the results stay JSON.
+# shortcut: only a line's shape is checked, as tinyeval doesn't need jq; an app's JSON encoder writes valid lines.
+_te_read_calls() {
+  local l n=0 bad=''
+  _te_calls='' _te_call_lines=''
+  [ -s "$1" ] || return 0
+  while IFS= read -r l || [ -n "$l" ]; do
+    l=${l%$'\r'} n=$((n + 1))
+    [ -n "$l" ] || continue
+    if [[ $l != "{"*"}" ]]; then
+      [ -n "$bad" ] || _te_fail "line $n of \$TINYEVAL_CALLS isn't a JSON object on one line (write each call unindented): ${l:0:80}"
+      bad=1
+      continue
+    fi
+    _te_calls=${_te_calls:+$_te_calls,}$l _te_call_lines=$_te_call_lines$l$'\n'
+  done <"$1"
+  [ -z "$_te_calls" ] || [ -n "$cost" ] ||
+    cost=$(printf '%s' "$_te_call_lines" | LC_ALL=C awk '
+      match($0, /"cost"[ \t]*:[ \t]*[0-9][0-9.eE+-]*/) { v = substr($0, RSTART, RLENGTH); sub(/^"cost"[ \t]*:[ \t]*/, "", v); s += v; n++ }
+      END { if (n) printf "%.10g", s }')
+}
+
+# "call (model) → call (model)" for the AI calls in $1, one JSON object a line.
+_te_call_names() {
+  printf '%s' "$1" | LC_ALL=C awk '
+    function str(k,   v) {
+      if (!match($0, "\"" k "\"[ \t]*:[ \t]*\"([^\"\\\\]|\\\\.)*\"")) return ""
+      v = substr($0, RSTART, RLENGTH); sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", v); return substr(v, 1, length(v) - 1)
+    }
+    { c = str("call"); m = str("model"); out = out (NR > 1 ? " → " : "") (c == "" ? "?" : c) (m == "" ? "" : " (" m ")") }
+    END { print out }'
+}
+
 # Prints the judge model's answer to $1, or why there is none and returns 1.
 _te_ask_judge() {
   if [ -n "${TINYEVAL_JUDGE:-}" ]; then printf '%s' "$1" | sh -c "$TINYEVAL_JUDGE"; return; fi
@@ -391,7 +428,8 @@ _te_worker_up() {
   _te_wn=$((_te_wn + 1))
   f="$w.$_te_wn"
   mkfifo "$f.in" "$f.out" || exit 2
-  "${_te_worker[@]}" <"$f.in" >"$f.out" 2>"$f.err" &
+  # One calls file per slot: a slot's worker answers one test case at a time, which clears it first.
+  TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" <"$f.in" >"$f.out" 2>"$f.err" &
   _te_wpids[s]=$! _te_werrs[s]=$f.err
   eval "exec $((20 + 2 * s))>\"\$f.in\" $((21 + 2 * s))<\"\$f.out\""
 }
@@ -460,7 +498,11 @@ _te_case() {
   _te_dir=$1
   local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt cost h jcost TIMEFORMAT=%3R
   local suite key file jinput joutput targets='' t jt name=$_te_name
-  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=()
+  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls
+  # Where the app may write its AI calls: this test case's own file, or its worker slot's (_te_worker_up).
+  local calls_file="$_te_dir/calls"
+  [ ${#_te_worker[@]} -eq 0 ] || calls_file="$_te_tmp/$_te_i.w$_te_slot.calls"
+  export TINYEVAL_CALLS=$calls_file
   for a in ${_te_asserts[@]+"${_te_asserts[@]}"}; do
     if [[ $a == "#check "* ]]; then keys+=("$_te_name / ${a#\#check }") lines+=(0)
     else lines[${#lines[@]} - 1]=$((lines[${#lines[@]} - 1] + 1)); fi
@@ -477,6 +519,7 @@ _te_case() {
     # bash's time keyword, not a clock command: two per run (perl on macOS's bash 3.2) were most of tinyeval's own time.
     { time {
       [ ! -f "$_te_dir/timed-out" ] || rm "$_te_dir/timed-out"
+      : >"$calls_file"
       if [ ${#_te_worker[@]} -gt 0 ]; then
         _te_worker_ask
       elif ! type ask >/dev/null 2>&1; then
@@ -506,6 +549,7 @@ _te_case() {
           *) _te_fail "not a #tinyeval line: $h (couldnt_run REASON or cost_usd DOLLARS)" ;;
         esac
       done
+      _te_read_calls "$calls_file"
       # The AI call's errors are every eval's; a grading line's are its own eval's.
       asked=$_te_errors g=0
       for a in ${_te_asserts[@]+"${_te_asserts[@]}"} "#check "; do
@@ -524,12 +568,13 @@ _te_case() {
     ms=$((10#${ms/[.,]/})) total_ms=$((total_ms + ms))
     _te_json jinput "$_te_input"
     _te_json joutput "$output"
+    jcalls='' && [ -z "$_te_calls" ] || jcalls=",\"calls\":[$_te_calls]"
     g=$first
     while [ $g -lt ${#keys[@]} ]; do
       passed=true failure='' couldnt=''
       if [ -z "${fails[g]}" ]; then passes[g]=$((${passes[g]:-0} + 1)); else
         _te_json failure "${fails[g]}"
-        passed=false failure=",\"failure\":$failure" shown[g]=${fails[g]} shown_output[g]=$output
+        passed=false failure=",\"failure\":$failure" shown[g]=${fails[g]} shown_output[g]=$output shown_calls[g]=$_te_call_lines
         # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
         if [ "${fails[g]}" = "${errs[g]}" ]; then
           _te_json couldnt "${errs[g]}"
@@ -540,8 +585,8 @@ _te_case() {
       # The call's cost goes on one eval only, so a test case's checks don't count it again.
       jcost='' && [ -z "$cost" ] || [ $g -ne $first ] || jcost=",\"cost_usd\":$cost"
       # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
-      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s}\n' \
-        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" \
+      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s%s}\n' \
+        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" "$jcalls" \
         >>"$_te_dir/results.jsonl"
       g=$((g + 1))
     done
@@ -569,7 +614,10 @@ _te_case() {
       reply=$(printf '%s' "${shown_output[g]:-(empty)}" | tr '\n' ' ' | cut -c 1-200)
       printf '%s\n' "${shown[g]}" | sed "s/^/$indent    /"
       # A check that failed on the reply another one showed doesn't show it again.
-      [ "$reply" = "$last_reply" ] || printf '%s    %sreply: %s%s\n' "$indent" "$_te_d" "$reply" "$_te_0"
+      if [ "$reply" != "$last_reply" ]; then
+        printf '%s    %sreply: %s%s\n' "$indent" "$_te_d" "$reply" "$_te_0"
+        [ -z "${shown_calls[g]}" ] || printf '%s    %scalls: %s%s\n' "$indent" "$_te_d" "$(_te_call_names "${shown_calls[g]}")" "$_te_0"
+      fi
       last_reply=$reply
     fi
     verdict=pass
