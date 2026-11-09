@@ -20,8 +20,5 @@
   "documentationUrl": "https://github.com/evalship-hq/tinyeval#readme",
   "supportUrl": "https://github.com/evalship-hq/tinyeval/issues",
   "privacyPolicyUrl": "https://evalship.com/privacy",
-  "termsOfServiceUrl": "https://evalship.com/terms",
-  "experimental": {
-    "evals": "evals"
-  }
+  "termsOfServiceUrl": "https://evalship.com/terms"
 }
