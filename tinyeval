@@ -687,6 +687,9 @@ for _te_f in "$@"; do
     _te_name='' _te_n=0 _te_header='' _te_names=$'\n'
     _te_pids=()
     _te_dirs=()
+    # bash 3.2 (macOS) brace-expands inside "$(echo '...')" once an apostrophe written '"'"' flips its quote
+    # count: JSON rows like {"a": 1, "b": 2} multiplied into billions of inputs and filled all memory.
+    set +B
     trap '[ $? -ne 127 ] || _te_unknown "$BASH_COMMAND"' ERR
     # shellcheck source=/dev/null
     . "$_te_f"

@@ -35,6 +35,9 @@ ok "escaping: passes" '[ $code -eq 0 ]'
 ok "escaping: output survives as JSON" '[ "$(jqr -r ".evals[0].output" "$tmp/esc.json" | tr -d "\r")" = "$(printf "back\\\\slash \"quoted\"\ttab\nline two [31mred[0m")" ]'
 ok "escaping: key with quotes" 'jqr -e ".evals[0].key == \"escaping \\\"quotes\\\"\"" "$tmp/esc.json" >/dev/null'
 
+out=$(./tinyeval -o "$tmp/braces.json" test/fixtures/braces.sh 2>&1); code=$?
+ok "braces: inputs keep them, so bash 3.2 can't multiply JSON rows" '[ $code -eq 0 ] && [[ $out == *"All 2 evals passed"* ]]'
+
 out=$(./tinyeval -o "$tmp/failing.json" test/fixtures/failing.sh); code=$?
 ok "failing exits 1" '[ $code -eq 1 ]'
 ok "failing: contains reason" '[[ $out == *"expected to contain \"30 days\""* ]]'

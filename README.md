@@ -167,6 +167,8 @@ while IFS=$'\t' read -r name question want || [ -n "$name" ]; do
 done <evals/refunds.tsv
 ```
 
+Brace expansion is off in eval files, so `{a,b}` and `{1..3}` stay as written. Use `seq` for a range. On macOS's bash 3.2, it would multiply JSON inputs that hold an apostrophe.
+
 See [examples/support.sh](examples/support.sh) for a suite whose AI call is a Ruby script using the `anthropic` gem.
 
 ## Judge
