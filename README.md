@@ -40,6 +40,22 @@ test_case "refund after the window" "Can I return shoes that arrived 40 days ago
 
 tinyeval needs bash 3.2 or later, which macOS, most Linux and Git for Windows come with (on Alpine, `apk add bash`). `judge` also uses curl.
 
+## Check every prompt change
+
+With the tinyeval skill, your coding agent tests a change to a prompt, a model or an AI call before it finishes. It runs the change's test cases before and after, and keeps the inputs it would have tried by hand as test cases.
+
+In Claude Code:
+
+```
+/plugin install tinyeval --marketplace evalship-hq/tinyeval
+```
+
+In Codex, Cursor, Gemini CLI and other agents that read skills:
+
+```sh
+npx skills add evalship-hq/tinyeval
+```
+
 ## Writing evals
 
 Each file in `evals/` is a suite. It defines `ask` and lists test cases.

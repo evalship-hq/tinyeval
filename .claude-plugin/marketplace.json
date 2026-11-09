@@ -1,0 +1,15 @@
+{
+  "name": "tinyeval",
+  "description": "tinyeval: evals for AI features in any language, and a skill that checks prompt and model changes.",
+  "owner": {
+    "name": "evalship",
+    "url": "https://evalship.com"
+  },
+  "plugins": [
+    {
+      "name": "tinyeval",
+      "source": "./",
+      "description": "Checks prompt, model and LLM call changes on real inputs before and after, and keeps those checks as test cases in the repo."
+    }
+  ]
+}
