@@ -40,6 +40,8 @@ test_case "refund after the window" "Can I return shoes that arrived 40 days ago
 
 tinyeval needs bash 3.2 or later, which macOS, most Linux and Git for Windows come with (on Alpine, `apk add bash`). `judge` also uses curl.
 
+Or start from a template repo with a support bot, its test cases and a CI workflow: [Ruby](https://github.com/evalship-hq/ruby-llm-evals), [Go](https://github.com/evalship-hq/go-llm-evals), [Rust](https://github.com/evalship-hq/rust-llm-evals), [Java](https://github.com/evalship-hq/java-llm-evals) or [PHP](https://github.com/evalship-hq/php-llm-evals).
+
 ## Check every prompt change
 
 With the tinyeval skill, your coding agent tests a change to a prompt, a model or an AI call before it finishes. It runs the change's test cases before and after, and keeps the inputs it would have tried by hand as test cases.

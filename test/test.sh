@@ -85,6 +85,16 @@ ok "#tinyeval couldnt_run: the run couldn't run" '[[ $out == *"! rate limited co
 ok "#tinyeval cost_usd: on the test case's own eval only, and not in the graded reply" 'jqr -e "[.evals[1:3][] | .cost_usd] == [0.0000125, null] and .evals[1].output == \"{\\\"answer\\\": 42}\"" "$tmp/headers.json" >/dev/null'
 ok "a misspelled #tinyeval line fails" '[ $code -eq 1 ] && [[ $out == *"not a #tinyeval line: cost 1"* ]]'
 
+out=$(./tinyeval -o "$tmp/calls.json" test/fixtures/calls.sh 2>&1); code=$?
+ok "calls: kept on every eval of the test case, as written" 'jqr -e "[.evals[0:2][] | .calls | map(.call)] == [[\"classify\", \"answer\"], [\"classify\", \"answer\"]] and .evals[0].calls[1].input == \"x \\\"quoted\\\"\"" "$tmp/calls.json" >/dev/null'
+ok "calls: their cost adds up on the test case's own eval" 'jqr -e "[.evals[0:2][] | .cost_usd] == [0.0026, null]" "$tmp/calls.json" >/dev/null'
+ok "calls: a failing test case lists them" '[[ $out == *"calls: classify (haiku) → answer (opus)"* ]]'
+ok "calls: a pretty-printed call fails, and the results stay JSON" '[ $code -eq 1 ] && [[ $out == *"line 1 of \$TINYEVAL_CALLS isn'"'"'t a JSON object on one line (write each call unindented): {"* ]] && [[ $out != *"line 2 of"*  ]] && jqr -e ".evals[3].calls == null" "$tmp/calls.json" >/dev/null'
+ok "calls: none written, none kept" 'jqr -e ".evals[4] | has(\"calls\") | not" "$tmp/calls.json" >/dev/null'
+ok "calls: the reply's own cost_usd wins" 'jqr -e ".evals[5].cost_usd == 0.5" "$tmp/calls.json" >/dev/null'
+./tinyeval -j 1 -o "$tmp/wcalls.json" test/fixtures/worker_calls.sh >/dev/null 2>&1
+ok "calls: a worker's are each test case's own" 'jqr -e "[.evals[].calls | map(.call)] == [[\"one\"], [\"two\"]]" "$tmp/wcalls.json" >/dev/null'
+
 out=$(./tinyeval -o "$tmp/noask.json" test/fixtures/noask.sh); code=$?
 ok "no ask: fails with a hint" '[ $code -eq 1 ] && [[ $out == *"define ask or worker in test/fixtures/noask.sh"* ]]'
 
