@@ -237,6 +237,8 @@ end
 
 tinyeval keeps the calls with each eval in the results file, lists them under a failing test case, and adds up their `cost` unless the reply says it with `#tinyeval cost_usd`.
 
+An app that already sends OpenTelemetry traces can skip the file. When `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` is set, tinyeval adds `evalship.eval=<id>` to `OTEL_RESOURCE_ATTRIBUTES` for each run of `ask`, and writes the same id as the eval's `otel`. Point the exporter at [evalship](https://evalship.com/docs/formats#calls), and its report shows each eval's spans as its calls. Not yet with `worker`, which reads the variable once.
+
 ## Since the last run
 
 tinyeval writes `eval-results.json` and compares each run with the one before it:
