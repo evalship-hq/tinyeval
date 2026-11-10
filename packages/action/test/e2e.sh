@@ -8,7 +8,7 @@ trap 'rm -rf "$tmp"' EXIT
 version=$(sed -n 's/^_te_version=//p' "$pkg/../../tinyeval")
 fail() { echo "$*" >&2; exit 1; }
 
-git init -q --bare "$tmp/mirror.git"
+git init -q --bare -b main "$tmp/mirror.git" # the branch mirror.sh pushes, whatever init.defaultBranch says
 "$pkg/mirror.sh" "$tmp/mirror.git" "v$version"
 [[ $("$pkg/mirror.sh" "$tmp/mirror.git" "v$version") == *"has v$version already"* ]] || fail "a second push didn't skip"
 # A later release moves v0: pretend this one was the last, and push it again.
