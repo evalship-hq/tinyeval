@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs the bundled bash tinyeval. It loads nothing from lib: the worker's stdout redirect would hide tinyeval's output.
+runner = File.expand_path("../tinyeval", __dir__)
+ENV["TINYEVAL_PACKAGE_UPDATE"] = ENV["BUNDLE_GEMFILE"] ? "bundle update tinyeval" : "gem update tinyeval"
+
+bash = "bash"
+if Gem.win_platform?
+  # Git for Windows' bash, next to the cmd folder that has git.exe, before a bash on PATH, which may be WSL's.
+  git_dirs = ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).select { |dir| File.file?(File.join(dir, "git.exe")) }
+  candidates = git_dirs.map { |dir| File.expand_path("../bin/bash.exe", dir) } << "C:/Program Files/Git/bin/bash.exe"
+  bash = candidates.find { |path| File.file?(path) } || bash
+end
+
+begin
+  exec(bash, runner, *ARGV)
+rescue SystemCallError
+  warn "tinyeval needs bash 3.2 or later. On Windows, install Git for Windows: https://git-scm.com/download/win"
+  exit 2
+end

@@ -23,12 +23,36 @@ jobs:
 
   # One job per registry. A stub with `if: false` isn't built yet.
 
-  # RubyGems, packages/ruby
+  # RubyGems, packages/ruby, through a trusted publisher for this workflow: no token.
   rubygems:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/ruby
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ruby
+      - run: ruby -Ilib test/worker_test.rb
+      - run: test/e2e.sh
+      - uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+      # The gem's version is _te_version, which the release job checked against the tag.
+      - name: Publish, unless RubyGems has this version
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          if curl -fs -o /dev/null "https://rubygems.org/api/v2/rubygems/tinyeval/versions/$version.json"; then
+            echo "tinyeval $version is on RubyGems already"
+          else
+            gem build tinyeval.gemspec -o tinyeval.gem
+            gem push tinyeval.gem
+          fi
 
   # PyPI, packages/python, by trusted publishing. A version PyPI already has is skipped, so a re-run passes.
   pypi:
