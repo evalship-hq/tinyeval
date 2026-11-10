@@ -3,6 +3,7 @@ name: Release
 # Pushing a tag like v0.3.0 publishes a release with tinyeval attached: install.sh, setup.md and
 # tinyeval update download it from releases/latest. Then each registry's job publishes the same version, on its
 # own: one that fails stops none of the others, and the summary job lists which did. packages/SPEC.md has the jobs.
+# The skill in plugin/ stays on its pinned release until packages/plugin/pin.sh moves it there.
 on:
   push:
     tags: ['v*']

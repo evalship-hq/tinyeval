@@ -10,7 +10,7 @@ A prompt or model change can fix the reply you looked at and break three you did
 ## 1. Find the evals
 
 - `./tinyeval` and `evals/*.sh` exist: go to step 2.
-- The repo has other evals (promptfoo, pytest, DeepEval, a script): run those before and after the change, the way steps 2 to 4 describe, and leave tinyeval out. If the user wants to move them, follow `curl -fsSL https://raw.githubusercontent.com/evalship-hq/tinyeval/main/migrate.md`.
+- The repo has other evals (promptfoo, pytest, DeepEval, a script): run those before and after the change, the way steps 2 to 4 describe, and leave tinyeval out. If the user wants to move them, follow [migrate.md](migrate.md) in this skill's folder.
 - No evals: follow "Add tinyeval" below for the feature you're changing. Don't stop to ask first: the eval file and `./tinyeval` are part of your change, and your report names them so the user can drop them.
 
 Always make the change the user asked for, even when the check can't run (a missing key, no network). Then say what the check still needs and the command that runs it.
@@ -42,7 +42,7 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
 1. In the repo root, download it. Then run `./tinyeval -v` as a command of its own, since permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
 
    ```sh
-   curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval && chmod +x tinyeval
+   curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.10.0/tinyeval && echo "b061feecf2654a5b6a746dd146a517acb017e30221185cd8552f7d1a9cdccb94  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
    ```
 
 2. Create `evals/<feature>.sh`. Define `ask` so it runs the code path production uses, with the input as `$1` (and on stdin) and the reply on stdout. Never copy the prompt into the eval: the eval must break when the real prompt or model changes. If no entry point takes one input and prints the reply, add a small script that calls the production function.
@@ -83,7 +83,6 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
    - After you change a prompt, a model or an AI call, run `./tinyeval -n 3` and fix what broke. `-k NAME` runs only the test cases whose name contains NAME.
    - When you add an AI feature or change what one should do, add or update its test cases.
    - Leave an eval that catches a real bug failing; don't loosen it to pass.
-   - `./tinyeval update` installs the latest tinyeval. Commit the new `./tinyeval`.
    ```
 
-To cover every AI feature in the repo and run the evals in CI, follow `curl -fsSL https://tinyeval.com/setup.md`.
+To cover every AI feature in the repo and run the evals in CI, follow [setup.md](setup.md) in this skill's folder.

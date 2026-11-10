@@ -259,4 +259,6 @@ ok "update check: a package's job summary names its update command" 'grep -qxF "
 GITHUB_STEP_SUMMARY="$tmp/summary4.md" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/broken")" ./tinyeval -o "$tmp/s4.json" test/fixtures/basics.sh >/dev/null 2>&1
 ok "update check: nothing in the job summary when the download fails" '[ "$(cat "$tmp/summary4.md")" = "### tinyeval: All 6 evals passed" ]'
 
+ok "plugin: the skill pins its runner and pages (packages/plugin/pin.sh)" '! grep -rqE "releases/latest|tinyeval update|curl -fsSL https" plugin'
+
 [ $fails -eq 0 ] && echo "all tests passed" || { echo "$fails failed"; exit 1; }
