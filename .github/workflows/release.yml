@@ -74,12 +74,28 @@ jobs:
           packages-dir: packages/python/dist
           skip-existing: true
 
-  # npm, packages/npm
+  # npm, packages/npm, through trusted publishing: npm trusts this workflow, so no token.
   npm:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/npm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/* # its npm is 11.5.1 or later, which trusted publishing needs
+          registry-url: https://registry.npmjs.org
+      - run: npm test && test/e2e.sh
+      - name: Publish, unless npm has this version
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          if [ "$(npm view "tinyeval@$v" version 2>/dev/null)" = "$v" ]; then echo "npm has tinyeval $v"; exit 0; fi
+          npm publish --provenance --access public
 
   # crates.io, packages/rust
   crates:
