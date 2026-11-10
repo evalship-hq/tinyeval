@@ -1,0 +1,20 @@
+{
+    "name": "evalship/tinyeval",
+    "description": "Evals for the AI calls in your PHP or Laravel app, run by one bash file",
+    "type": "library",
+    "homepage": "https://tinyeval.com",
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/evalship-hq/tinyeval/issues",
+        "source": "https://github.com/evalship-hq/tinyeval/tree/main/packages/php"
+    },
+    "require": {
+        "php": ">=8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Tinyeval\\": "src/"
+        }
+    },
+    "bin": ["bin/tinyeval"]
+}

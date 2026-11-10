@@ -1,0 +1,37 @@
+#!/usr/bin/env php
+<?php
+
+// Runs the bundled bash tinyeval. It loads nothing else: worker.php's redirect would hide tinyeval's output.
+$runner = str_replace('\\', '/', dirname(__DIR__)) . '/tinyeval'; // a path Git for Windows' bash reads too
+putenv('TINYEVAL_PACKAGE_UPDATE=composer update evalship/tinyeval');
+
+$windows = PHP_OS_FAMILY === 'Windows';
+$path = explode(PATH_SEPARATOR, getenv('PATH') ?: '');
+$candidates = [];
+if ($windows) {
+    // Git for Windows' bash, next to the cmd folder that has git.exe, before a bash on PATH, which may be WSL's.
+    foreach ($path as $dir) {
+        if (is_file("$dir/git.exe")) {
+            $candidates[] = dirname($dir) . '/bin/bash.exe';
+        }
+    }
+    $candidates[] = 'C:/Program Files/Git/bin/bash.exe';
+}
+foreach ($path as $dir) {
+    $candidates[] = $dir . ($windows ? '/bash.exe' : '/bash');
+}
+$bash = current(array_filter($candidates, 'is_executable'));
+if (!$bash) {
+    fwrite(STDERR, "tinyeval needs bash 3.2 or later. On Windows, install Git for Windows: https://git-scm.com/download/win\n");
+    exit(2);
+}
+
+$args = array_slice($_SERVER['argv'], 1);
+if (function_exists('pcntl_exec')) {
+    pcntl_exec($bash, [$runner, ...$args]); // returns only when it fails
+}
+// shortcut: without pcntl on macOS or Linux, Ctrl-C stops PHP along with bash, so the shell gets PHP's exit code.
+if (function_exists('sapi_windows_set_ctrl_handler')) {
+    sapi_windows_set_ctrl_handler(function (int $event): void {}); // bash handles Ctrl-C; PHP waits for it
+}
+exit(proc_close(proc_open([$bash, $runner, ...$args], [STDIN, STDOUT, STDERR], $pipes)));

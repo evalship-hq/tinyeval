@@ -1,0 +1,34 @@
+name: Packagist package
+
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/php/**', .github/workflows/package-packagist.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/php/**', .github/workflows/package-packagist.yml]
+
+jobs:
+  # The oldest PHP composer.json allows and the latest, and Windows, where there's no pcntl_exec, so the command
+  # runs Git for Windows' bash with proc_open.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, php: '8.1'}
+          - {os: ubuntu-latest, php: latest}
+          - {os: windows-latest, php: latest}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/php
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer
+          coverage: none
+      - run: php test/worker_test.php
+      - run: test/e2e.sh
