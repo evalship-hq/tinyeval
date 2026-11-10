@@ -267,12 +267,33 @@ jobs:
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
-  # LuaRocks, packages/lua
+  # LuaRocks, packages/lua, with the LUAROCKS_API_KEY secret: LuaRocks has no trusted publishing. luarocks upload packs
+  # the rockspec's source, this tag on GitHub, into a .src.rock and uploads both.
   luarocks:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: leafo/gh-actions-lua@32909a2dea0a48c433aec79e7fcd31b4cd55800f # v13.1.0
+        with:
+          luaVersion: '5.4'
+      - uses: leafo/gh-actions-luarocks@1c4a92caecc8f6850f673cbadfd57b3e555417ce # v6.1.1
+      - run: packages/lua/test.sh # leaves tinyeval-X.Y.Z-1.rockspec in packages/lua
+      - name: Publish, unless LuaRocks has this version
+        working-directory: packages/lua
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+        run: |
+          rockspec=tinyeval-${GITHUB_REF_NAME#v}-1.rockspec
+          if curl -fs -o /dev/null "https://luarocks.org/$rockspec"; then
+            echo "LuaRocks has $rockspec already"
+          else
+            luarocks upload --temp-key="$LUAROCKS_API_KEY" "$rockspec"
+          fi
 
   # Maven Central, packages/jvm
   maven:

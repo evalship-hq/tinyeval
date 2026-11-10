@@ -1,0 +1,25 @@
+name: LuaRocks package
+
+# The rock in packages/lua: the helper's unit tests, and the rock as luarocks make installs it into a fresh project tree.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/lua/**', .github/workflows/package-luarocks.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/lua/**', .github/workflows/package-luarocks.yml]
+
+jobs:
+  test:
+    # The oldest Lua the rock allows, 5.4, the newest, and LuaJIT. No Windows: gh-actions-luarocks builds with make.
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: ['5.1', '5.4', '5.5', luajit-2.1]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: leafo/gh-actions-lua@32909a2dea0a48c433aec79e7fcd31b4cd55800f # v13.1.0
+        with:
+          luaVersion: ${{ matrix.lua }}
+      - uses: leafo/gh-actions-luarocks@1c4a92caecc8f6850f673cbadfd57b3e555417ce # v6.1.1
+      - run: packages/lua/test.sh
