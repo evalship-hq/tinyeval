@@ -1,0 +1,35 @@
+name: Action package
+
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/action/**', .github/workflows/package-action.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/action/**', .github/workflows/package-action.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # In src/, so the workspace is an empty project with no ./tinyeval of its own, which the runner would run instead.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src
+      - run: src/packages/action/test/e2e.sh
+      - run: mkdir evals && cp src/packages/e2e.sh evals/ && cp src/tinyeval src/packages/action/
+      - uses: ./src/packages/action
+        env:
+          E2E_WORKER: perl src/packages/action/test/worker.pl
+      - uses: ./src/packages/action
+        with:
+          args: -k error -o other.json evals/e2e.sh
+        env:
+          E2E_WORKER: perl src/packages/action/test/worker.pl
+      - run: '[ -s other.json ]'

@@ -1,0 +1,20 @@
+# The tinyeval repo keeps the runner out of this folder; mirror.sh copies it in for evalship-hq/tinyeval-action.
+name: Run tinyeval
+description: Run the evals for your AI features in any language, and see what failed on the run's summary page.
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  args:
+    description: "tinyeval's options and eval files, such as -n 3 -x junit.xml (default: evals/*.sh)"
+    default: ''
+runs:
+  using: composite
+  steps:
+    # bash is Git for Windows' on Windows runners. $TINYEVAL_ARGS is unquoted, so args split on spaces and globs expand,
+    # without running them as code. shortcut: quotes aren't parsed, so -k takes one word; parse them when someone asks.
+    - shell: bash
+      env:
+        TINYEVAL_ARGS: ${{ inputs.args }}
+        TINYEVAL_PACKAGE_UPDATE: the latest evalship-hq/tinyeval-action
+      run: exec bash "$GITHUB_ACTION_PATH/tinyeval" $TINYEVAL_ARGS
