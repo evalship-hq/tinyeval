@@ -1,0 +1,31 @@
+name: PyPI package
+
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/python/**', .github/workflows/package-pypi.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/python/**', .github/workflows/package-pypi.yml]
+
+jobs:
+  # The oldest Python the package supports and the newest, and Windows with Git for Windows' bash.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.9'}
+          - {os: ubuntu-latest, python: '3.x'}
+          - {os: windows-latest, python: '3.x'}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: bash packages/python/test.sh
+        env:
+          PYTHON: python
