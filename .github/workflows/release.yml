@@ -199,12 +199,30 @@ jobs:
       - name: Ask the Go proxy for it, so pkg.go.dev lists it
         run: curl -fsS --retry 3 --retry-all-errors "https://proxy.golang.org/github.com/evalship-hq/tinyeval/go/@v/$GITHUB_REF_NAME.info"
 
-  # Packagist: pushes packages/php to evalship-hq/tinyeval-php
+  # Packagist reads evalship-hq/tinyeval-php: this pushes packages/php there with the runner, tags it, and
+  # Packagist's GitHub hook picks up the tag. A tag the mirror has already is skipped, so a re-run passes.
   packagist:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/php
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: latest
+          tools: composer
+          coverage: none
+      - run: php test/worker_test.php
+      - run: test/e2e.sh
+      - run: ./mirror.sh "https://x-access-token:${MIRROR_TOKEN}@github.com/evalship-hq/tinyeval-php.git" "$GITHUB_REF_NAME"
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
   # LuaRocks, packages/lua
   luarocks:
