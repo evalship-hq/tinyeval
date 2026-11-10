@@ -203,10 +203,12 @@ version=$(sed -n 's/^_te_version=//p' tinyeval)
 sed 's/^_te_version=.*/_te_version=9.9.9/' tinyeval >"$tmp/release"
 printf '<html>Not Found</html>\n' >"$tmp/broken"
 
-mkdir "$tmp/repo" && printf '#!/usr/bin/env bash\necho "repo copy $*"\n' >"$tmp/repo/tinyeval" && chmod +x "$tmp/repo/tinyeval"
+mkdir "$tmp/repo" && printf '#!/usr/bin/env bash\necho "repo copy $*${TINYEVAL_PACKAGE_UPDATE+ from a package}"\n' >"$tmp/repo/tinyeval" && chmod +x "$tmp/repo/tinyeval"
 here=$PWD
 out=$(cd "$tmp/repo" && "$here/tinyeval" -k x)
 ok "on PATH: runs the repo's ./tinyeval" '[ "$out" = "repo copy -k x" ]'
+out=$(cd "$tmp/repo" && TINYEVAL_PACKAGE_UPDATE="gem update tinyeval" "$here/tinyeval" -k x)
+ok "on PATH: a package's copy runs the repo's ./tinyeval as the repo's own" '[ "$out" = "repo copy -k x" ]'
 
 mkdir "$tmp/up" && cp tinyeval "$tmp/up/tinyeval"
 out=$(cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/release") ./tinyeval update); code=$?
@@ -216,6 +218,8 @@ ok "update: says when it's the latest" '[ $code -eq 0 ] && [[ $out == *"9.9.9 is
 cp tinyeval "$tmp/up/tinyeval"
 (cd "$tmp/up" && TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/broken") ./tinyeval update >/dev/null 2>&1); code=$?
 ok "update: keeps the file when the download isn't tinyeval" '[ $code -eq 2 ] && cmp -s tinyeval "$tmp/up/tinyeval" && [ ! -e "$tmp/up/tinyeval.download" ]'
+out=$(cd "$tmp/up" && TINYEVAL_PACKAGE_UPDATE="bundle update tinyeval" TINYEVAL_DOWNLOAD_URL=$(furl "$tmp/release") ./tinyeval update 2>&1); code=$?
+ok "update: a package's copy says to update through its package manager" '[ $code -eq 2 ] && [[ $out == *"Update it with: bundle update tinyeval" ]] && cmp -s tinyeval "$tmp/up/tinyeval"'
 
 # A fake curl answers for evalship.com as its share API does: the body, then -w's status code.
 mkdir "$tmp/fakecurl" && cat >"$tmp/fakecurl/curl" <<'SH' && chmod +x "$tmp/fakecurl/curl"
@@ -250,6 +254,8 @@ fi
 
 GITHUB_STEP_SUMMARY="$tmp/summary3.md" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/s3.json" test/fixtures/basics.sh >/dev/null 2>&1
 ok "update check: the GitHub Actions job summary names the release" 'grep -qF "tinyeval 9.9.9 is out. Run ./tinyeval update and commit it." "$tmp/summary3.md"'
+GITHUB_STEP_SUMMARY="$tmp/summary5.md" TINYEVAL_PACKAGE_UPDATE="npm update tinyeval" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/release")" ./tinyeval -o "$tmp/s5.json" test/fixtures/basics.sh >/dev/null 2>&1
+ok "update check: a package's job summary names its update command" 'grep -qxF "tinyeval 9.9.9 is out. Run npm update tinyeval." "$tmp/summary5.md"'
 GITHUB_STEP_SUMMARY="$tmp/summary4.md" TINYEVAL_DOWNLOAD_URL="$(furl "$tmp/broken")" ./tinyeval -o "$tmp/s4.json" test/fixtures/basics.sh >/dev/null 2>&1
 ok "update check: nothing in the job summary when the download fails" '[ "$(cat "$tmp/summary4.md")" = "### tinyeval: All 6 evals passed" ]'
 

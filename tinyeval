@@ -50,6 +50,11 @@ by the lines that grade its reply:
 More: https://github.com/evalship-hq/tinyeval"
 _te_download=${TINYEVAL_DOWNLOAD_URL:-https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval}
 
+# A package manager's copy (gem, pip, npm...) updates through it, so the package's wrapper sets the command that does.
+# Not passed on: a repo's own ./tinyeval, run below, updates itself.
+_te_pkg=${TINYEVAL_PACKAGE_UPDATE-}
+unset TINYEVAL_PACKAGE_UPDATE
+
 # The tinyeval on PATH runs the repo's own ./tinyeval, so each repo keeps the version its evals were written for.
 if [ -f ./tinyeval ] && [ -x ./tinyeval ] && ! [ ./tinyeval -ef "$0" ]; then exec ./tinyeval "$@"; fi
 
@@ -60,6 +65,7 @@ _te_newer() {
 }
 
 if [ "${1-}" = update ]; then
+  [ -z "$_te_pkg" ] || { echo "tinyeval: a package manager installed this tinyeval. Update it with: $_te_pkg" >&2; exit 2; }
   # Next to this file, so the rename below replaces it in one step: bash may still be reading the old one.
   _te_new="$0.download"
   if ! curl -fsSL "$_te_download" -o "$_te_new" || ! _te_latest=$(sed -n 's/^_te_version=//p' "$_te_new") ||
@@ -753,19 +759,20 @@ if [ -n "$_te_junit" ]; then
     cat "$_te_tmp/junit.xml"
     echo '</testsuites>'; } >"$_te_junit"
 fi
+# What the update notices below say to run.
+if [ -n "$_te_pkg" ]; then _te_up=$_te_pkg _te_commit=''
+else case $0 in ./*) _te_up="$0 update" ;; *) _te_up='tinyeval update' ;; esac; _te_commit=' and commit it'; fi
 # GitHub Actions shows this on the run's page.
 if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   { echo "### tinyeval: $_te_said"
     if [ -s "$_te_tmp/summary.md" ]; then printf '\n| | Test case | Why | Reply |\n|---|---|---|---|\n'; cat "$_te_tmp/summary.md"; fi
     wait "$_te_check_pid" 2>/dev/null # at most curl's 5 seconds, and the run has usually outlasted it
     if _te_latest=$(cat "$_te_tmp/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
-      case $0 in ./*) _te_cmd=$0 ;; *) _te_cmd=tinyeval ;; esac
-      printf '\ntinyeval %s is out. Run %s update and commit it.\n' "$_te_latest" "$_te_cmd"
+      printf '\ntinyeval %s is out. Run %s%s.\n' "$_te_latest" "$_te_up" "$_te_commit"
     fi
   } >>"$GITHUB_STEP_SUMMARY"
 fi
 if [ -n "${_te_check-}" ] && _te_latest=$(cat "$_te_cache/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
-  case $0 in ./*) _te_cmd=$0 ;; *) _te_cmd=tinyeval ;; esac
-  printf '%stinyeval %s is out. Run %s update%s\n' "$_te_d" "$_te_latest" "$_te_cmd" "$_te_0"
+  printf '%stinyeval %s is out. Run %s%s\n' "$_te_d" "$_te_latest" "$_te_up" "$_te_0"
 fi
 [ $((_te_failed + _te_broke)) -eq 0 ] || exit 1

@@ -1,7 +1,8 @@
 name: Release
 
 # Pushing a tag like v0.3.0 publishes a release with tinyeval attached: install.sh, setup.md and
-# tinyeval update download it from releases/latest.
+# tinyeval update download it from releases/latest. Then each registry's job publishes the same version, on its
+# own: one that fails stops none of the others, and the summary job lists which did. packages/SPEC.md has the jobs.
 on:
   push:
     tags: ['v*']
@@ -19,3 +20,130 @@ jobs:
       - run: gh release create "$GITHUB_REF_NAME" tinyeval install.sh --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # One job per registry. A stub with `if: false` isn't built yet.
+
+  # RubyGems, packages/ruby
+  rubygems:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # PyPI, packages/python
+  pypi:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # npm, packages/npm
+  npm:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # crates.io, packages/rust
+  crates:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Hex, packages/elixir
+  hex:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # NuGet, packages/dotnet
+  nuget:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # pub.dev, packages/dart
+  pub:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Go modules: tags go/vX.Y.Z for go/
+  go:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Packagist: pushes packages/php to evalship-hq/tinyeval-php
+  packagist:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # LuaRocks, packages/lua
+  luarocks:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Maven Central, packages/jvm
+  maven:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Swift Package Index: pushes packages/swift to evalship-hq/tinyeval-swift
+  swift:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # R-universe, packages/r
+  r-universe:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Homebrew: updates the formula in evalship-hq/homebrew-tap
+  homebrew:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # GitHub Actions Marketplace: pushes packages/action to evalship-hq/tinyeval-action
+  action:
+    needs: release
+    if: false # not built yet
+    runs-on: ubuntu-latest
+    steps: [{run: 'false'}]
+
+  # Which registries have this version. Run the failed ones again with: gh run rerun RUN_ID --failed
+  summary:
+    needs: [release, rubygems, pypi, npm, crates, hex, nuget, pub, go, packagist, luarocks, maven, swift, r-universe, homebrew, action]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")' <<<"$NEEDS")
+          {
+            echo "### tinyeval ${GITHUB_REF_NAME#v}"
+            echo
+            echo '| Job | Result |'
+            echo '|---|---|'
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<<"$NEEDS"
+            [ -z "$failed" ] || printf '\nNot published: %s\n' "$failed"
+          } >>"$GITHUB_STEP_SUMMARY"
+          [ -z "$failed" ] || { echo "::error::Not published: $failed"; exit 1; }
