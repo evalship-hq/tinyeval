@@ -16,7 +16,7 @@ trap 'brew uninstall -q --force "$tap/tinyeval" >/dev/null 2>&1; brew untap -q "
 # GitHub's tarball is git archive with a tinyeval-X.Y.Z/ prefix. stash create adds uncommitted changes, when there are.
 rev=$(git -C "$root" stash create)
 git -C "$root" archive --prefix="tinyeval-$version/" -o "$tmp/v$version.tar.gz" "${rev:-HEAD}"
-git init -q --bare "$tmp/tap.git"
+git init -q --bare -b main "$tmp/tap.git" # the branch the tap pushes, whatever init.defaultBranch says
 "$pkg/tap.sh" "$tmp/tap.git" "v$version" "$tmp/v$version.tar.gz"
 [[ $("$pkg/tap.sh" "$tmp/tap.git" "v$version" "$tmp/v$version.tar.gz") == *"has tinyeval $version already"* ]] ||
   { echo "a second push didn't skip" >&2; exit 1; }
