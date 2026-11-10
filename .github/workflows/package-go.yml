@@ -1,0 +1,29 @@
+name: Package go
+
+# The Go module in go/: its helper's tests, then the module as the Go proxy gets it from a go/vX.Y.Z tag, end to end.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'go/**', .github/workflows/package-go.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'go/**', .github/workflows/package-go.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: go
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false # no dependencies
+      - run: ./prepare.sh && go vet ./... && go test ./...
+      - run: ./e2e.sh

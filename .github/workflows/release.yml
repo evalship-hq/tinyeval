@@ -168,12 +168,36 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{run: 'false'}]
 
-  # Go modules: tags go/vX.Y.Z for go/
+  # Go modules, go/: nothing to upload. The Go proxy reads the module from the go/vX.Y.Z tag, which this job puts on a
+  # commit off main that adds the runner and LICENSE to go/, so main holds no second copy.
   go:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: write # pushes the tag
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - run: ./prepare.sh && go vet ./... && go test ./... && ./e2e.sh
+      - name: Tag go/vX.Y.Z, unless the tag exists
+        run: |
+          tag=go/$GITHUB_REF_NAME
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "$tag exists already"
+          else
+            git add -f LICENSE cmd/tinyeval/tinyeval # prepare.sh's copies
+            git -c user.name='github-actions[bot]' -c user.email='41898283+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "tinyeval ${GITHUB_REF_NAME#v} for Go modules"
+            git tag "$tag" && git push origin "refs/tags/$tag"
+          fi
+      - name: Ask the Go proxy for it, so pkg.go.dev lists it
+        run: curl -fsS --retry 3 --retry-all-errors "https://proxy.golang.org/github.com/evalship-hq/tinyeval/go/@v/$GITHUB_REF_NAME.info"
 
   # Packagist: pushes packages/php to evalship-hq/tinyeval-php
   packagist:
