@@ -1,0 +1,5 @@
+# Build output, and the copy of ../../tinyeval that test.sh makes. mirror.sh commits that copy to the mirror.
+/.build/
+/.swiftpm/
+/Package.resolved
+/Sources/TinyevalCommand/tinyeval
