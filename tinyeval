@@ -143,7 +143,8 @@ fi
 # A coding agent's sandbox may not let it write to $TMPDIR, so the repo holds it then, until tinyeval exits.
 _te_tmp=$(mktemp -d 2>/dev/null || mktemp -d "$PWD/.tinyeval.XXXXXX") || exit 2
 # Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
-if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp"); fi
+_te_win=''
+if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp") _te_win=1; fi
 trap 'rm -rf "$_te_tmp"' EXIT
 if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   curl -fsSL -m 5 "$_te_download" 2>/dev/null | sed -n 's/^_te_version=//p' >"$_te_tmp/latest" &
@@ -444,7 +445,12 @@ _te_worker_up() {
   f="$w.$_te_wn"
   mkfifo "$f.in" "$f.out" || exit 2
   # One calls file per slot: a slot's worker answers one test case at a time, which clears it first.
-  TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" <"$f.in" >"$f.out" 2>"$f.err" &
+  if [ -n "$_te_win" ]; then
+    # Git Bash: native programs, like python.exe, can't open its FIFOs, so cat carries the bytes over plain pipes.
+    { cat <"$f.in" | TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" | cat >"$f.out"; } 2>"$f.err" &
+  else
+    TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" <"$f.in" >"$f.out" 2>"$f.err" &
+  fi
   _te_wpids[s]=$! _te_werrs[s]=$f.err
   eval "exec $((20 + 2 * s))>\"\$f.in\" $((21 + 2 * s))<\"\$f.out\""
 }
