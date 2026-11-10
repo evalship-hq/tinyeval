@@ -1,0 +1,43 @@
+{
+  "name": "tinyeval",
+  "version": "0.10.0",
+  "description": "LLM evals for JavaScript and TypeScript apps, in one bash file: a worker helper and the tinyeval command.",
+  "keywords": [
+    "evals",
+    "llm",
+    "testing",
+    "ci"
+  ],
+  "homepage": "https://tinyeval.com",
+  "bugs": "https://github.com/evalship-hq/tinyeval/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evalship-hq/tinyeval.git",
+    "directory": "packages/npm"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "types": "./index.d.ts",
+  "bin": {
+    "tinyeval": "bin/tinyeval.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin/",
+    "tinyeval"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepack": "node prepack.js",
+    "test": "node --test test/worker.test.js"
+  }
+}
