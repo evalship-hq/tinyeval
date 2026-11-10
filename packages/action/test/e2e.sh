@@ -20,7 +20,7 @@ tags() { git -C "$tmp/mirror.git" rev-parse "$@"; }
 
 git clone -q --branch "v$version" "$tmp/mirror.git" "$tmp/action" 2>/dev/null
 action=$tmp/action
-[ "$(git -C "$action" ls-files | tr '\n' ' ')" = "LICENSE README.md action.yml tinyeval " ] ||
+[ "$(git -C "$action" ls-files | tr '\n' ' ')" = ".gitattributes LICENSE README.md action.yml tinyeval " ] ||
   fail "the mirror has: $(git -C "$action" ls-files | tr '\n' ' ')"
 cmp -s "$action/tinyeval" "$pkg/../../tinyeval" || fail "the mirror's tinyeval differs from ./tinyeval"
 grep -q "evalship-hq/tinyeval-action@v$version$" "$action/README.md" || fail "the mirror's README doesn't pin v$version"
