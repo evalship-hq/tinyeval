@@ -126,12 +126,33 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
-  # Hex, packages/elixir
+  # Hex, packages/elixir, with Hex's workload identity: no API key, as the job's OIDC token proves it's this workflow.
   hex:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    environment: release # the environment the workload identity on hex.pm names
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/elixir
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: '28'
+          elixir-version: '1.19'
+      - run: mix deps.get
+      - run: mix test
+      - run: test/e2e.sh
+      - name: Publish, unless Hex has this version
+        run: |
+          if curl -fs -o /dev/null "https://hex.pm/api/packages/tinyeval/releases/${GITHUB_REF_NAME#v}"; then
+            echo "Hex has tinyeval ${GITHUB_REF_NAME#v} already"
+          else
+            mix hex.publish --yes
+          fi
 
   # NuGet, packages/dotnet
   nuget:
