@@ -161,12 +161,35 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{run: 'false'}]
 
-  # pub.dev, packages/dart
+  # pub.dev, packages/dart, by automated publishing: pub.dev trusts this repo's v{{version}} tags, so no token.
   pub:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/dart
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - run: ./prepare.sh && dart pub get && dart test && test/e2e.sh
+      - name: Whether pub.dev has this version
+        id: pub
+        run: |
+          version=$(sed -n 's/^version: //p' pubspec.yaml)
+          if curl -fs -o /dev/null "https://pub.dev/api/packages/tinyeval/versions/$version"; then
+            echo "pub.dev has tinyeval $version already"
+            echo "published=true" >>"$GITHUB_OUTPUT"
+          fi
+      # setup-dart again, for a fresh pub.dev token: they last about 5 minutes.
+      - if: steps.pub.outputs.published != 'true'
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - if: steps.pub.outputs.published != 'true'
+        run: dart pub publish --force
 
   # Go modules, go/: nothing to upload. The Go proxy reads the module from the go/vX.Y.Z tag, which this job puts on a
   # commit off main that adds the runner and LICENSE to go/, so main holds no second copy.

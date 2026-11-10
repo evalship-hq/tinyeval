@@ -1,0 +1,6 @@
+.dart_tool/
+pubspec.lock
+# prepare.sh copies or writes these
+/lib/src/tinyeval
+/LICENSE
+/CHANGELOG.md

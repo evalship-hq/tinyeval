@@ -1,0 +1,5 @@
+# pub reads this instead of .gitignore here, so the runner and LICENSE that prepare.sh copies in get published.
+.dart_tool/
+pubspec.lock
+prepare.sh
+test/e2e.sh

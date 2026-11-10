@@ -1,0 +1,26 @@
+name: Package pub
+
+# The pub.dev package in packages/dart: its helper's tests, then the package as pub.dev gets it, end to end.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/dart/**', .github/workflows/package-pub.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/dart/**', .github/workflows/package-pub.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/dart
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - run: ./prepare.sh && dart pub get && dart analyze && dart test
+      - run: test/e2e.sh

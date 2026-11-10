@@ -1,0 +1,13 @@
+name: tinyeval
+description: LLM evals for Dart and Flutter apps. Write test cases in a short bash file, and a worker helper sends each one to your Dart code.
+version: 0.10.0
+homepage: https://tinyeval.com
+repository: https://github.com/evalship-hq/tinyeval/tree/main/packages/dart
+issue_tracker: https://github.com/evalship-hq/tinyeval/issues
+topics: [evals, llm, testing]
+
+environment:
+  sdk: ^3.0.0
+
+dev_dependencies:
+  test: ^1.25.0
