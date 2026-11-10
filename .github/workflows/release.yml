@@ -323,11 +323,35 @@ jobs:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
   # R-universe, packages/r
+  # R-universe builds packages/r from this repo's latest GitHub release, on its own schedule: the packages.json in
+  # evalship-hq/evalship-hq.r-universe.dev says so. This checks the tag has what it will build. It publishes nothing,
+  # so a re-run passes.
   r-universe:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/r
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./sync.sh # the tag's inst/tinyeval and DESCRIPTION's Version match its tinyeval
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          working-directory: packages/r
+          extra-packages: any::rcmdcheck
+          needs: check
+      - uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          working-directory: packages/r
+      - run: ./e2e.sh
+      - run: echo "::notice::R-universe builds tinyeval ${GITHUB_REF_NAME#v} on its own: https://github.com/r-universe/evalship-hq/actions"
 
   # Homebrew, packages/homebrew: writes the tag's source tarball into the formula and pushes it to
   # evalship-hq/homebrew-tap. A tap with this version already is skipped, so a re-run passes.

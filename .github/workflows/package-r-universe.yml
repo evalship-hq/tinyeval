@@ -1,0 +1,38 @@
+name: Package r-universe
+
+# The R package in packages/r: its committed runner and version, R CMD check --as-cran with the helper's tests, then
+# the source package, installed into an empty project, end to end.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/r/**', .github/workflows/package-r-universe.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/r/**', .github/workflows/package-r-universe.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/r
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./sync.sh # fails when inst/tinyeval or DESCRIPTION's Version is behind ./tinyeval
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: true
+          rtools-version: none # nothing to compile
+      - uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          working-directory: packages/r
+          extra-packages: any::rcmdcheck
+          needs: check
+      - uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          working-directory: packages/r
+      - run: ./e2e.sh
