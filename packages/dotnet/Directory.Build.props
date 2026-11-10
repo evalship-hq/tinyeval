@@ -1,0 +1,25 @@
+<Project>
+  <!-- The version is _te_version in the repo's tinyeval file, so a release changes one line. -->
+  <PropertyGroup>
+    <TinyevalRunner>$(MSBuildThisFileDirectory)../../tinyeval</TinyevalRunner>
+    <TinyevalVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText($(TinyevalRunner))), '(?m)(?&lt;=^_te_version=)[^\r\n]+'))</TinyevalVersion>
+    <Version>$(TinyevalVersion)</Version>
+    <Authors>tinyeval</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://tinyeval.com</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/evalship-hq/tinyeval</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>llm;evals;testing</PackageTags>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <Target Name="TinyevalVersion" BeforeTargets="Build;Pack">
+    <Error Condition="'$(TinyevalVersion)' == '' or '$(PackageVersion)' != '$(TinyevalVersion)'"
+           Text="The package version, $(PackageVersion), isn't _te_version in $(TinyevalRunner): $(TinyevalVersion)" />
+  </Target>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

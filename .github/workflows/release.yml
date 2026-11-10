@@ -154,12 +154,32 @@ jobs:
             mix hex.publish --yes
           fi
 
-  # NuGet, packages/dotnet
+  # NuGet, packages/dotnet: Tinyeval, the worker library, and Tinyeval.Tool, the command. Trusted publishing swaps
+  # this job's OIDC token for an API key that lasts an hour. --skip-duplicate passes a version nuget.org already has.
   nuget:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/dotnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test Tinyeval.Tests && ./e2e.sh # leaves both packages in dist/
+      - uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }} # the nuget.org profile name that owns the trusted publishing policy
+      - run: dotnet nuget push "dist/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
   # pub.dev, packages/dart, by automated publishing: pub.dev trusts this repo's v{{version}} tags, so no token.
   pub:

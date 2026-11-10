@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The tinyeval command, a dotnet tool. net8.0 rolls forward, so it runs on any .NET 8 or later. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>tinyeval</ToolCommandName>
+    <PackageId>Tinyeval.Tool</PackageId>
+    <Description>The tinyeval command for .NET: runs the evals in evals/*.sh against your app and says which replies pass.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(TinyevalRunner)" Link="tinyeval" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

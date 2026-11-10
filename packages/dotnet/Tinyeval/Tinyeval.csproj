@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- netstandard2.0: one build that .NET 8, 10 and .NET Framework apps all reference. The helper needs nothing newer. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>Tinyeval</PackageId>
+    <Description>Run your C# app's AI calls against tinyeval's test cases: a worker that answers each input and sorts outages from failures.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tinyeval.Tests" />
+  </ItemGroup>
+
+</Project>
