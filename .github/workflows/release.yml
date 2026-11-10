@@ -332,12 +332,33 @@ jobs:
         env:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
-  # GitHub Actions Marketplace: pushes packages/action to evalship-hq/tinyeval-action
+  # GitHub Actions Marketplace lists evalship-hq/tinyeval-action: this pushes packages/action there with the runner,
+  # tags it, moves the major tag, and releases the tag, which the Marketplace lists. A tag or release the mirror has
+  # already is skipped, so a re-run passes.
   action:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: packages/action/test/e2e.sh
+      - run: packages/action/mirror.sh "https://x-access-token:${MIRROR_TOKEN}@github.com/evalship-hq/tinyeval-action.git" "$GITHUB_REF_NAME"
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+      - name: Release the tag on the mirror, unless it has the release
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          repo=evalship-hq/tinyeval-action
+          if gh release view "$GITHUB_REF_NAME" -R "$repo" >/dev/null 2>&1; then
+            echo "$repo has the $GITHUB_REF_NAME release already"
+          else
+            gh release create "$GITHUB_REF_NAME" -R "$repo" --verify-tag --title "tinyeval ${GITHUB_REF_NAME#v}" \
+              --notes "https://github.com/evalship-hq/tinyeval/releases/tag/$GITHUB_REF_NAME"
+          fi
 
   # Which registries have this version. Run the failed ones again with: gh run rerun RUN_ID --failed
   summary:
