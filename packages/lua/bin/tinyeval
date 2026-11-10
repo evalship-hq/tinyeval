@@ -1,0 +1,107 @@
+#!/usr/bin/env lua
+-- The tinyeval command: runs the bash tinyeval this rock installed next to its module. It doesn't require that
+-- module, which moves print and io.stdout to stderr.
+local windows = package.config:sub(1, 1) == "\\"
+
+local function exists(path)
+  local file = io.open(path)
+  return file ~= nil and file:close()
+end
+
+local function quote(s)
+  if windows then -- shortcut: cmd.exe still reads % and ^ in arguments; fine for tinyeval's flags and paths
+    return '"' .. s:gsub('(\\*)"', '%1%1\\"'):gsub("(\\+)$", "%1%1") .. '"'
+  end
+  return "'" .. s:gsub("'", [['\'']]) .. "'"
+end
+
+-- LuaRocks' wrapper puts this rock's tree first on package.path, so the first match is this rock's runner.
+local runner
+for template in package.path:gmatch("[^;]+") do
+  local path = template:gsub("%.lua$", ""):gsub("%?", "tinyeval/tinyeval")
+  if exists(path) then
+    runner = path
+    break
+  end
+end
+if not runner then
+  io.stderr:write("tinyeval: the bash runner isn't next to this rock's tinyeval module. Reinstall the rock.\n")
+  os.exit(2)
+end
+
+-- The command that updates this rock in its own tree, which tinyeval update and the new-release notice print.
+local tree = runner:match("^(.*)[/\\]share[/\\]lua[/\\]")
+local home, pwd = os.getenv("HOME"), os.getenv("PWD")
+local update = "luarocks install tinyeval"
+if tree and tree == (home and home .. "/.luarocks") then
+  update = "luarocks install --local tinyeval"
+elseif tree then
+  if pwd and tree:sub(1, #pwd + 1) == pwd .. "/" then
+    tree = tree:sub(#pwd + 2)
+  end
+  update = "luarocks install --tree " .. (tree:find(" ") and '"' .. tree .. '"' or tree) .. " tinyeval"
+end
+
+-- The worker's lua finds this tree's rocks, tinyeval's helper and the app's own among them.
+local env = {
+  { "TINYEVAL_PACKAGE_UPDATE", update },
+  { "LUA_PATH", package.path .. ";;" },
+  { "LUA_CPATH", package.cpath .. ";;" },
+}
+local args = {}
+for i = 1, #arg do
+  args[i] = quote(arg[i])
+end
+
+local command
+if windows then
+  -- Git for Windows' bash, next to the cmd folder that has git.exe, before a bash on PATH, which may be WSL's.
+  local found, path = {}, os.getenv("PATH") or ""
+  for dir in path:gmatch("[^;]+") do
+    if exists(dir .. "\\git.exe") then
+      found[#found + 1] = dir .. "\\..\\bin\\bash.exe"
+    end
+  end
+  found[#found + 1] = "C:\\Program Files\\Git\\bin\\bash.exe"
+  for dir in path:gmatch("[^;]+") do
+    found[#found + 1] = dir .. "\\bash.exe"
+  end
+  local bash
+  for _, candidate in ipairs(found) do
+    if exists(candidate) then
+      bash = candidate
+      break
+    end
+  end
+  if not bash then
+    io.stderr:write("tinyeval needs bash from Git for Windows: https://gitforwindows.org\n")
+    os.exit(2)
+  end
+  local sets = {}
+  for i, pair in ipairs(env) do
+    sets[i] = 'set "' .. pair[1] .. "=" .. pair[2] .. '"'
+  end
+  command = table.concat(sets, " && ") .. " && " .. quote(bash) .. " " .. quote(runner) .. " " .. table.concat(args, " ")
+else
+  local exports = {}
+  for i, pair in ipairs(env) do
+    exports[i] = pair[1] .. "=" .. quote(pair[2])
+  end
+  command = "export " .. table.concat(exports, " ") .. "; command -v bash >/dev/null || "
+    .. "{ echo 'tinyeval needs bash 3.2 or later' >&2; exit 2; }; exec bash " .. quote(runner) .. " " .. table.concat(args, " ")
+end
+
+-- Lua can't replace its process, so it waits for bash, which gets Ctrl-C while os.execute ignores it.
+local ok, how, code = os.execute(command)
+if type(ok) == "number" then -- Lua 5.1 and LuaJIT: the exit code on Windows, the wait status elsewhere
+  if windows then
+    code = ok
+  elseif ok % 256 == 0 then
+    code = ok / 256
+  else
+    code = 128 + ok % 128 -- killed by a signal
+  end
+elseif how == "signal" then
+  code = 128 + code
+end
+os.exit(code)

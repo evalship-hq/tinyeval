@@ -1,0 +1,3 @@
+# test.sh writes it from tinyeval.rockspec.in, with the version in ../../tinyeval
+/tinyeval-*.rockspec
+*.rock
