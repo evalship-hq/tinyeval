@@ -8,7 +8,7 @@ Add it to `mix.exs`, then run `mix deps.get`:
 
 ```elixir
 def deps do
-  [{:tinyeval, "~> 0.10", only: [:dev, :test], runtime: false}]
+  [{:tinyeval, "~> 0.11", only: [:dev, :test], runtime: false}]
 end
 ```
 
@@ -46,7 +46,7 @@ Options pass through, such as `mix tinyeval -n 3 -k refund`. `mix tinyeval -h` l
 
 ## Couldn't run
 
-Raise `Tinyeval.CouldntRun` when the AI call itself failed: no key, a 401, a 429, a 5xx, a timeout. tinyeval then counts the run apart from the failures. Any other error becomes the reply, so the eval fails, and its stack trace goes to stderr.
+Raise `Tinyeval.CouldntRun` when the AI call itself failed: no key, a 401, a 429, a 5xx, a timeout. tinyeval then counts the run apart from the failures, and still exits 1. Any other error becomes the reply, so the eval fails, and its stack trace goes to stderr.
 
 Elixir has no official Anthropic or OpenAI SDK, so `Tinyeval.CouldntRun` is the only error the worker reads this way. With Req, map the responses yourself:
 
