@@ -45,7 +45,7 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
    curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.10.0/tinyeval && echo "b061feecf2654a5b6a746dd146a517acb017e30221185cd8552f7d1a9cdccb94  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
    ```
 
-2. Create `evals/<feature>.sh`. Define `ask` so it runs the code path production uses, with the input as `$1` (and on stdin) and the reply on stdout. Never copy the prompt into the eval: the eval must break when the real prompt or model changes. If no entry point takes one input and prints the reply, add a small script that calls the production function.
+2. Create `evals/<feature>.sh`. Define `ask` so it runs the code path production uses, with the input as `$1` (and on stdin) and the reply on stdout. Never put a copy of the prompt in the eval: the eval must break when the real prompt or model changes. If no entry point takes one input and prints the reply, add a small script that calls the production function.
 
    ```bash
    ask() { python3 -m app.summarize "$1"; }

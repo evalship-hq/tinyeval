@@ -27,10 +27,9 @@ ask() { bin/rails runner 'puts Summarizer.call(STDIN.read)'; }
 ask() { python3 -m app.summarize "$1"; }
 ask() { go run ./cmd/summarize "$1"; }
 ask() { cargo run -q --bin summarize -- "$1"; }
-ask() { curl -s localhost:3000/api/summarize --data-binary @-; }
 ```
 
-If no entry point takes one input and prints the reply, add a small script that calls the production function, for example `script/eval_summarize`. When the app takes seconds to start, as a Rails or Django app does, use `worker COMMAND` instead of `ask`: tinyeval keeps COMMAND running, one per `-j`, and sends it each input up to a NUL byte on stdin. It prints each reply and a NUL byte, and flushes; the README has Ruby and Python examples. Never copy the prompt into the eval: the eval must break when the real prompt or model changes. Print JSON replies as JSON. Read keys from the environment variables the app already uses.
+If no entry point takes one input and prints the reply, add a small script that calls the production function, for example `script/eval_summarize`. When the app takes seconds to start, as a Rails or Django app does, use `worker COMMAND` instead of `ask`: tinyeval keeps COMMAND running, one per `-j`, and sends it each input up to a NUL byte on stdin. It prints each reply and a NUL byte, and flushes; the README has Ruby and Python examples. Never put a copy of the prompt in the eval: the eval must break when the real prompt or model changes. Print JSON replies as JSON. Read keys from the environment variables the app already uses.
 
 Where the code path calls a model, record the call when `TINYEVAL_CALLS` is set: append one line of JSON to that file with `call` (a name for the call, the same each time), `model`, `input` (what the model got), `output`, and `cost`, `input_tokens` and `output_tokens` when the response has them. Use the language's JSON encoder, one object per line, not indented. A failing test case then shows what each model got and answered. The README's "AI calls" section has an example.
 
