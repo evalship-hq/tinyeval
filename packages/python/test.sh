@@ -34,11 +34,11 @@ def answer(text):
 worker(answer)
 PY
 cd "$project"
-version=$("$bin/python" -c 'import importlib.metadata; print(importlib.metadata.version("tinyeval"))')
+version=$("$bin/python" -c 'import importlib.metadata; print(importlib.metadata.version("tinyeval-cli"))')
 [ "$("$bin/tinyeval" -v)" = "tinyeval $version" ] || { echo "tinyeval -v doesn't print $version" >&2; exit 1; }
 set +e
 "$bin/tinyeval" update 2>update.err
 status=$?
 set -e
-[ "$status" = 2 ] && grep -q "pip install -U tinyeval" update.err || { echo "tinyeval update exited $status: $(cat update.err)" >&2; exit 1; }
+[ "$status" = 2 ] && grep -q "pip install -U tinyeval-cli" update.err || { echo "tinyeval update exited $status: $(cat update.err)" >&2; exit 1; }
 E2E_WORKER="$bin/python evals/worker.py" "$bin/tinyeval"

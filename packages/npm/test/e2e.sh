@@ -19,17 +19,17 @@ export function answer(input) {
 }
 JS
 cat >evals/worker.mjs <<'JS'
-import { worker } from "tinyeval";
+import { worker } from "tinyeval-cli";
 import { answer } from "../app.mjs";
 await worker(answer);
 JS
 E2E_WORKER="node evals/worker.mjs" npx tinyeval
 
-version=$(node -p 'require("./node_modules/tinyeval/package.json").version')
+version=$(node -p 'require("./node_modules/tinyeval-cli/package.json").version')
 [ "$version" = "$(sed -n 's/^_te_version=//p' "$pkg/../../tinyeval")" ] || { echo "package.json has $version" >&2; exit 1; }
 [ "$(npx tinyeval -v)" = "tinyeval $version" ] || { echo "tinyeval -v printed $(npx tinyeval -v)" >&2; exit 1; }
 code=0; said=$(npx tinyeval update 2>&1) || code=$?
-[ "$code" = 2 ] && [[ $said == *"npm update tinyeval"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
+[ "$code" = 2 ] && [[ $said == *"npm update tinyeval-cli"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
 # CommonJS can require it where Node can require ES modules (20.19, 22.12 and later).
-node -e 'if (process.features.require_module && typeof require("tinyeval").worker !== "function") process.exit(1)'
+node -e 'if (process.features.require_module && typeof require("tinyeval-cli").worker !== "function") process.exit(1)'
 echo "end to end: ok"

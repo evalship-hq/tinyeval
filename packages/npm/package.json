@@ -1,6 +1,6 @@
 {
-  "name": "tinyeval",
-  "version": "0.10.0",
+  "name": "tinyeval-cli",
+  "version": "0.11.0",
   "description": "LLM evals for JavaScript and TypeScript apps, in one bash file: a worker helper and the tinyeval command.",
   "keywords": [
     "evals",

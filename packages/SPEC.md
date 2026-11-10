@@ -5,8 +5,8 @@ Each package puts tinyeval in one language's own registry. It is a wrapper: the 
 | Job in release.yml | Language | Registry | Name | Folder |
 |---|---|---|---|---|
 | `rubygems` | Ruby | RubyGems | `tinyeval` | `packages/ruby` |
-| `pypi` | Python | PyPI | `tinyeval` | `packages/python` |
-| `npm` | JavaScript, TypeScript | npm | `tinyeval` (with types) | `packages/npm` |
+| `pypi` | Python | PyPI | `tinyeval-cli` (imported as `tinyeval`; PyPI has an unrelated tiny-eval) | `packages/python` |
+| `npm` | JavaScript, TypeScript | npm | `tinyeval-cli` (with types; npm has an unrelated tiny-eval) | `packages/npm` |
 | `crates` | Rust | crates.io | `tinyeval` | `packages/rust` |
 | `hex` | Elixir | Hex | `tinyeval` | `packages/elixir` |
 | `nuget` | C# | NuGet | `Tinyeval` (a library plus a dotnet tool) | `packages/dotnet` |

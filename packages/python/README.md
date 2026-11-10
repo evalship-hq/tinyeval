@@ -5,13 +5,13 @@ Test your Python app's AI calls from the command line: write test cases in a sho
 ## Install
 
 ```sh
-pip install tinyeval
+pip install tinyeval-cli
 ```
 
 With uv, as a dev dependency:
 
 ```sh
-uv add --dev tinyeval
+uv add --dev tinyeval-cli
 ```
 
 ## Example
@@ -68,7 +68,7 @@ bash 3.2 or later: macOS and Linux have it, and on Windows it comes with [Git fo
 ## Updating
 
 ```sh
-pip install -U tinyeval
+pip install -U tinyeval-cli
 ```
 
 With uv: `uv lock --upgrade-package tinyeval`. tinyeval is a normal dependency in your lock file, so Dependabot and Renovate open pull requests for new versions.

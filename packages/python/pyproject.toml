@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tinyeval"
+name = "tinyeval-cli"
 dynamic = ["version"]
 description = "Test your Python app's AI calls with evals in a short bash file."
 readme = "README.md"
@@ -27,6 +27,10 @@ tinyeval = "tinyeval.__main__:main"
 [tool.hatch.version]
 path = "../../tinyeval"
 pattern = "^_te_version=(?P<version>.+)$"
+
+# PyPI has an unrelated tiny-eval, so the project is tinyeval-cli; the import stays tinyeval.
+[tool.hatch.build.targets.wheel]
+packages = ["tinyeval"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "../../tinyeval" = "tinyeval/tinyeval"

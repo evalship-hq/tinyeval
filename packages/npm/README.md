@@ -5,7 +5,7 @@ Check your JavaScript or TypeScript app's AI replies on every pull request, with
 ## Install
 
 ```sh
-npm install --save-dev tinyeval
+npm install --save-dev tinyeval-cli
 ```
 
 ## Example
@@ -23,7 +23,7 @@ test_case "refund after the window" "Can I still return my shoes? They arrived 4
 `evals/worker.mjs` hands each input to your code and returns its reply:
 
 ```js
-import { worker, CouldntRun } from "tinyeval"; // first, so your app's console.log goes to stderr
+import { worker, CouldntRun } from "tinyeval-cli"; // first, so your app's console.log goes to stderr
 import { answer } from "../src/support.js";
 
 await worker(async (input) => {
@@ -51,10 +51,10 @@ tinyeval needs bash 3.2 or later. macOS and Linux come with it. On Windows, inst
 ## Updating
 
 ```sh
-npm update tinyeval
+npm update tinyeval-cli
 ```
 
-Or `pnpm update tinyeval`, `yarn up tinyeval`, `bun update tinyeval`. Since the version sits in your lock file, Dependabot and Renovate open the update for you.
+Or `pnpm update tinyeval-cli`, `yarn up tinyeval-cli`, `bun update tinyeval-cli`. Since the version sits in your lock file, Dependabot and Renovate open the update for you.
 
 ## Links
 

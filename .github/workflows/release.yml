@@ -95,7 +95,7 @@ jobs:
       - name: Publish, unless npm has this version
         run: |
           v=${GITHUB_REF_NAME#v}
-          if [ "$(npm view "tinyeval@$v" version 2>/dev/null)" = "$v" ]; then echo "npm has tinyeval $v"; exit 0; fi
+          if [ "$(npm view "tinyeval-cli@$v" version 2>/dev/null)" = "$v" ]; then echo "npm has tinyeval-cli $v"; exit 0; fi
           npm publish --provenance --access public
 
   # crates.io, packages/rust
