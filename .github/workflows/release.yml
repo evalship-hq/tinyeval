@@ -295,12 +295,46 @@ jobs:
             luarocks upload --temp-key="$LUAROCKS_API_KEY" "$rockspec"
           fi
 
-  # Maven Central, packages/jvm
+  # Maven Central, packages/jvm. It has no trusted publishing, so a Central Portal user token signs in
+  # (MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD) and a GPG key signs the files (MAVEN_GPG_KEY, MAVEN_GPG_PASSPHRASE).
   maven:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/jvm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          server-id: central # the central-publishing plugin's server in settings.xml
+          server-username-env-var: MAVEN_CENTRAL_USERNAME
+          server-password-env-var: MAVEN_CENTRAL_PASSWORD
+      - run: ./prepare.sh && mvn -B -ntp verify && ./e2e.sh
+      # The Portal says at once when a version is out, while repo1.maven.org shows it up to 30 minutes later.
+      - name: Publish, unless Maven Central has this version
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          token=$(printf %s "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_PASSWORD" | base64 -w0)
+          echo "::add-mask::$token"
+          published=$(curl -fsS -H "Authorization: Bearer $token" \
+            "https://central.sonatype.com/api/v1/publisher/published?namespace=com.evalship&name=tinyeval&version=$version" | jq -r .published)
+          if [ "$published" = true ]; then
+            echo "Maven Central has com.evalship:tinyeval $version already"
+          else
+            mvn -B -ntp -P release deploy -DskipTests # waits until Maven Central has published it
+          fi
 
   # SwiftPM and the Swift Package Index read evalship-hq/tinyeval-swift: this pushes packages/swift there with the
   # runner, and tags it X.Y.Z, without the v, as Swift packages tag. The Index finds new tags on its own. A tag the

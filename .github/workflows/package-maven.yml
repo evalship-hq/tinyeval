@@ -1,0 +1,33 @@
+name: Package maven
+
+# The Maven Central package in packages/jvm: its helper's tests, then the jar as Maven Central gets it, end to end.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/jvm/**', .github/workflows/package-maven.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/jvm/**', .github/workflows/package-maven.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/jvm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The jar targets Java 8; Java 21 builds it, as the example repos use.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: ./prepare.sh && mvn -B -ntp verify
+      - run: ./e2e.sh
