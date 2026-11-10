@@ -43,17 +43,24 @@ jobs:
           ruby-version: ruby
       - run: ruby -Ilib test/worker_test.rb
       - run: test/e2e.sh
-      - uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
       # The gem's version is _te_version, which the release job checked against the tag.
+      # The key comes from RubyGems' token exchange, which names the owning account (255880, Garm's immutable ID):
+      # a pending publisher's first push needs that, and configure-rubygems-credentials v2.1.0 has no owner input.
       - name: Publish, unless RubyGems has this version
         run: |
           version=${GITHUB_REF_NAME#v}
           if curl -fs -o /dev/null "https://rubygems.org/api/v2/rubygems/tinyeval/versions/$version.json"; then
             echo "tinyeval $version is on RubyGems already"
-          else
-            gem build tinyeval.gemspec -o tinyeval.gem
-            gem push tinyeval.gem
+            exit 0
           fi
+          jwt=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=rubygems.org" | jq -r .value)
+          key=$(jq -n --arg jwt "$jwt" '{jwt: $jwt, owner: "255880"}' |
+            curl -sS -H 'Content-Type: application/json' -H 'Accept: application/json' --data @- https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token |
+            jq -r '.rubygems_api_key // error("RubyGems refused the exchange: \(tostring)")')
+          [ -n "$key" ] || { echo "RubyGems gave no key" >&2; exit 1; }
+          echo "::add-mask::$key"
+          gem build tinyeval.gemspec -o tinyeval.gem
+          GEM_HOST_API_KEY=$key gem push tinyeval.gem
 
   # PyPI, packages/python, by trusted publishing. A version PyPI already has is skipped, so a re-run passes.
   pypi:
