@@ -60,6 +60,8 @@ Out of scope: recording `TINYEVAL_CALLS`, cost lines, retries, config, a second 
 6. **Updating** goes through the package manager, so Dependabot and Renovate see new versions.
 7. **Links:** https://tinyeval.com, tinyeval's README for writing evals, and the example repo `evalship-hq/<lang>-llm-evals`.
 
+Say what couldn't run means exactly: tinyeval counts it apart from the failures, and still exits 1. Never write that it doesn't fail.
+
 Write each one for its language, in its words and tools. No keyword lists, no paragraphs copied between packages: registries remove spam. Short sentences. Don't mention evalship.
 
 ## Tests
@@ -84,7 +86,7 @@ Write each one for its language, in its words and tools. No keyword lists, no pa
 
 ## CI
 
-1. **Tests:** your own `.github/workflows/package-<job>.yml`, on pushes to main and pull requests, with `paths:` for `tinyeval`, `packages/e2e.sh`, your folder and the workflow file. Unit tests and the end-to-end run on ubuntu-latest. Add windows-latest where the ecosystem is used on Windows (npm, PyPI and NuGet at least).
+1. **Tests:** your own `.github/workflows/package-<job>.yml`, on pushes to main and pull requests, with `paths:` for `tinyeval`, `packages/e2e.sh`, your folder and the workflow file. Unit tests and the end-to-end run on ubuntu-latest. Add windows-latest where the ecosystem is used on Windows (npm, PyPI and NuGet at least). Native worker programs work on Git Bash since 8c710ad.
 2. **Release:** replace your stub job in `.github/workflows/release.yml`. Keep `needs: release`, and drop `if: false`.
    - It runs the package's tests, then publishes the tag's version.
    - Prefer trusted publishing (`permissions: id-token: write`). Otherwise read a repository secret, and name it in your report.
@@ -102,7 +104,7 @@ Write each one for its language, in its words and tools. No keyword lists, no pa
 
 ## What only Garm does
 
-Auto mode blocks tags, new public repos, registry accounts, tokens, trusted-publisher settings and signing keys. Don't try them. Write each one as a numbered step with the exact command or URL and every field to fill in. Secrets go in with `pbpaste | gh secret set NAME -R evalship-hq/tinyeval`, never through the chat.
+Auto mode blocks tags, registry accounts, tokens, trusted-publisher settings and signing keys. Don't try them. The mirror and tap repos exist already, public and empty: evalship-hq/tinyeval-php, tinyeval-swift, homebrew-tap, tinyeval-action and evalship-hq.r-universe.dev. Write each one as a numbered step with the exact command or URL and every field to fill in. Secrets go in with `pbpaste | gh secret set NAME -R evalship-hq/tinyeval`, never through the chat.
 
 ## Report
 
