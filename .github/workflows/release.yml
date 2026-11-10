@@ -316,12 +316,21 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{run: 'false'}]
 
-  # Homebrew: updates the formula in evalship-hq/homebrew-tap
+  # Homebrew, packages/homebrew: writes the tag's source tarball into the formula and pushes it to
+  # evalship-hq/homebrew-tap. A tap with this version already is skipped, so a re-run passes.
   homebrew:
     needs: release
-    if: false # not built yet
-    runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: packages/homebrew/test.sh
+      - run: packages/homebrew/tap.sh "https://x-access-token:${MIRROR_TOKEN}@github.com/evalship-hq/homebrew-tap.git" "$GITHUB_REF_NAME"
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
   # GitHub Actions Marketplace: pushes packages/action to evalship-hq/tinyeval-action
   action:

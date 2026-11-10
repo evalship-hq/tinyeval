@@ -1,0 +1,23 @@
+name: Homebrew formula
+
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/homebrew/**', .github/workflows/package-homebrew.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/homebrew/**', .github/workflows/package-homebrew.yml]
+
+jobs:
+  # The formula in packages/homebrew, around a tarball of this checkout: brew style, audit, install, brew test and
+  # packages/e2e.sh. Linux too, as Homebrew runs there. No Windows: Homebrew doesn't.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: runner.os == 'Linux' # Ubuntu's runner image has Homebrew, off PATH
+        run: echo /home/linuxbrew/.linuxbrew/bin >>"$GITHUB_PATH"
+      - run: packages/homebrew/test.sh
