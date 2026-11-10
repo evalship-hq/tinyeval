@@ -1,0 +1,3 @@
+# prepare.sh copies these in, and a release commits them on its go/vX.Y.Z tag only
+/LICENSE
+/cmd/tinyeval/tinyeval
