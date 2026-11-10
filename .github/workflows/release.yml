@@ -235,7 +235,7 @@ jobs:
             echo "$tag exists already"
           else
             git add -f LICENSE cmd/tinyeval/tinyeval # prepare.sh's copies
-            git -c user.name='github-actions[bot]' -c user.email='41898283+github-actions[bot]@users.noreply.github.com' \
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
               commit -qm "tinyeval ${GITHUB_REF_NAME#v} for Go modules"
             git tag "$tag" && git push origin "refs/tags/$tag"
           fi
@@ -323,22 +323,20 @@ jobs:
           MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
   # R-universe, packages/r
-  # R-universe builds packages/r from this repo's latest GitHub release, on its own schedule: the packages.json in
-  # evalship-hq/evalship-hq.r-universe.dev says so. This checks the tag has what it will build. It publishes nothing,
-  # so a re-run passes.
+  # R-universe builds packages/r from this repo's r-universe branch, on its own schedule: the packages.json in
+  # evalship-hq/evalship-hq.r-universe.dev says so. This tests the package, then points that branch at a commit of this
+  # tag with prepare.sh's copies. A branch with this version or a newer one is left alone, so a re-run passes.
   r-universe:
     needs: release
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # pushes the r-universe branch
     defaults:
       run:
         working-directory: packages/r
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: ./sync.sh # the tag's inst/tinyeval and DESCRIPTION's Version match its tinyeval
+      - run: ./prepare.sh
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
           use-public-rspm: true
@@ -351,7 +349,19 @@ jobs:
         with:
           working-directory: packages/r
       - run: ./e2e.sh
-      - run: echo "::notice::R-universe builds tinyeval ${GITHUB_REF_NAME#v} on its own: https://github.com/r-universe/evalship-hq/actions"
+      - name: Point the r-universe branch at this release, unless it has this version or a newer one
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          have=$(git fetch -q origin r-universe 2>/dev/null && git show FETCH_HEAD:packages/r/DESCRIPTION | sed -n 's/^Version: //p' || true)
+          if [ -n "$have" ] && [ "$(printf '%s\n' "$version" "$have" | sort -V | tail -n1)" = "$have" ]; then
+            echo "The r-universe branch has tinyeval $have already"
+          else
+            git add -f inst/tinyeval DESCRIPTION # prepare.sh's copy and version
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "tinyeval $version for R-universe"
+            git push -f origin HEAD:refs/heads/r-universe
+            echo "::notice::R-universe builds tinyeval $version on its own: https://github.com/r-universe/evalship-hq/actions"
+          fi
 
   # Homebrew, packages/homebrew: writes the tag's source tarball into the formula and pushes it to
   # evalship-hq/homebrew-tap. A tap with this version already is skipped, so a re-run passes.

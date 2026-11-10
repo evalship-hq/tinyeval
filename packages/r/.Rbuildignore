@@ -1,5 +1,5 @@
 ^e2e\.sh$
-^sync\.sh$
+^prepare\.sh$
 ^\.gitignore$
 ^tinyeval_.*\.tar\.gz$
 ^tinyeval\.Rcheck$
