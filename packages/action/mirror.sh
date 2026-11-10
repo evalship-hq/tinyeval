@@ -20,7 +20,7 @@ trap 'rm -rf "$tmp"' EXIT
 git clone -q "$remote" "$tmp/mirror"
 cd "$tmp/mirror"
 git rm -rq --ignore-unmatch .
-cp "$pkg/action.yml" "$root"/{tinyeval,LICENSE} .
+cp "$pkg/action.yml" "$root"/{tinyeval,LICENSE,.gitattributes} . # .gitattributes keeps the runner LF in a Windows clone
 sed "s/tinyeval-action@v[0-9.]*[0-9]/tinyeval-action@$tag/g" "$pkg/README.md" >README.md # the README pins this release
 git add -A
 git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
