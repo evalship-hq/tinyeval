@@ -32,7 +32,7 @@ await worker(async (input) => {
 });
 ```
 
-An error your code throws becomes the reply, so the eval fails. `CouldntRun` keeps the test case out of the failures. So do bad keys, rate limits, server errors and timeouts from `@anthropic-ai/sdk` and `openai`.
+An error your code throws becomes the reply, so the eval fails. `CouldntRun` marks the test case as couldn't run instead: tinyeval counts it apart from the failures, and still exits 1. So do bad keys, rate limits, server errors and timeouts from `@anthropic-ai/sdk` and `openai`.
 
 The types come with the package. In TypeScript, name the file `worker.ts` and start it with `worker node evals/worker.ts` (Node 22.18 or later, or add `--experimental-strip-types`).
 
