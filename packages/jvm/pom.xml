@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.evalship</groupId>
+  <artifactId>tinyeval</artifactId>
+  <version>0.11.0</version><!-- _te_version: prepare.sh sets it, and a test fails when they differ -->
+
+  <name>tinyeval</name>
+  <description>Evals for the AI calls in your Java, Kotlin or Scala app: test cases in a short bash file, and a worker that answers them with your code.</description>
+  <url>https://tinyeval.com</url>
+  <licenses>
+    <license>
+      <name>MIT</name>
+      <url>https://github.com/evalship-hq/tinyeval/blob/main/LICENSE</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>evalship</name>
+      <url>https://github.com/evalship-hq</url>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/evalship-hq/tinyeval.git</connection>
+    <url>https://github.com/evalship-hq/tinyeval/tree/main/packages/jvm</url>
+  </scm>
+
+  <properties>
+    <!-- The lowest the Anthropic and OpenAI Java SDKs run on. -->
+    <maven.compiler.release>8</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.14.4</version><!-- JUnit 6 needs Java 17 -->
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <!-- The repo's tinyeval rides along unchanged, next to the classes that run it. -->
+      <resource>
+        <directory>../..</directory>
+        <includes><include>tinyeval</include></includes>
+        <targetPath>com/evalship/tinyeval</targetPath>
+      </resource>
+      <resource>
+        <directory>../..</directory>
+        <includes><include>LICENSE</include></includes>
+        <targetPath>META-INF</targetPath>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.15.0</version>
+        <configuration>
+          <compilerArgs><arg>-Xlint:-options</arg></compilerArgs><!-- release 8 is old, not wrong -->
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.4</version>
+        <configuration>
+          <systemPropertyVariables>
+            <tinyeval.version>${project.version}</tinyeval.version>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.5.0</version>
+        <configuration>
+          <archive>
+            <manifest><mainClass>com.evalship.tinyeval.Main</mainClass></manifest>
+            <manifestEntries><Automatic-Module-Name>com.evalship.tinyeval</Automatic-Module-Name></manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- mvn -P release deploy: sources, Javadoc and signatures, then the Central Portal publishes them. -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.4.0</version>
+            <executions>
+              <execution><goals><goal>jar-no-fork</goal></goals></execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.12.0</version>
+            <executions>
+              <execution><goals><goal>jar</goal></goals></execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.8</version>
+            <configuration>
+              <signer>bc</signer><!-- reads the key from MAVEN_GPG_KEY and its passphrase from MAVEN_GPG_PASSPHRASE -->
+            </configuration>
+            <executions>
+              <execution><goals><goal>sign</goal></goals></execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.12.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
