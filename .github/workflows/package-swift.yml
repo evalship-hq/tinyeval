@@ -1,0 +1,23 @@
+name: Swift package
+
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/swift/**', .github/workflows/package-swift.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/swift/**', .github/workflows/package-swift.yml]
+
+jobs:
+  # Linux and macOS, with the Swift each runner ships. Not Windows: Swift is rare there, and the command execs bash.
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: packages/swift
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: swift --version && ./test.sh

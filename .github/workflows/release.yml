@@ -302,12 +302,25 @@ jobs:
     runs-on: ubuntu-latest
     steps: [{run: 'false'}]
 
-  # Swift Package Index: pushes packages/swift to evalship-hq/tinyeval-swift
+  # SwiftPM and the Swift Package Index read evalship-hq/tinyeval-swift: this pushes packages/swift there with the
+  # runner, and tags it X.Y.Z, without the v, as Swift packages tag. The Index finds new tags on its own. A tag the
+  # mirror has already is skipped, so a re-run passes.
   swift:
     needs: release
-    if: false # not built yet
-    runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    runs-on: ubuntu-latest # Swift comes preinstalled
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/swift
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./test.sh
+      - run: ./mirror.sh "https://x-access-token:${MIRROR_TOKEN}@github.com/evalship-hq/tinyeval-swift.git" "$GITHUB_REF_NAME"
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
 
   # R-universe, packages/r
   r-universe:
