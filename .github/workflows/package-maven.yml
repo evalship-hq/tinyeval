@@ -29,5 +29,5 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: ./prepare.sh && mvn -B -ntp verify
+      - run: ./prepare.sh && mvn -B -ntp -P release -Dgpg.skip verify # the release profile too, so Javadoc breaks show before a tag
       - run: ./e2e.sh
