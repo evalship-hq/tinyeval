@@ -84,9 +84,31 @@ jobs:
   # crates.io, packages/rust
   crates:
     needs: release
-    if: false # not built yet
     runs-on: ubuntu-latest
-    steps: [{run: 'false'}]
+    permissions:
+      contents: read
+      id-token: write # trusted publishing
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./prepare.sh && cargo test && ./e2e.sh
+      - name: Whether crates.io has this version
+        id: index
+        run: |
+          version=$(sed -n 's/^_te_version=//p' tinyeval)
+          if curl -fsS https://index.crates.io/ti/ny/tinyeval | grep -q "\"vers\":\"$version\""; then
+            echo "crates.io has tinyeval $version already"
+            echo "published=true" >>"$GITHUB_OUTPUT"
+          fi
+      - if: steps.index.outputs.published != 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      - if: steps.index.outputs.published != 'true'
+        run: cargo publish --allow-dirty # prepare.sh's copies and version
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   # Hex, packages/elixir
   hex:

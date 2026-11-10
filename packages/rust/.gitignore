@@ -1,0 +1,5 @@
+# prepare.sh copies these in from the repo's root
+/tinyeval
+/LICENSE
+/target
+/Cargo.lock

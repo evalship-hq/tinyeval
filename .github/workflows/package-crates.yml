@@ -1,0 +1,25 @@
+name: Package crates
+
+# The crates.io package in packages/rust: its helper's tests, then the crate as crates.io gets it, end to end.
+on:
+  push:
+    branches: [main]
+    paths: [tinyeval, packages/e2e.sh, 'packages/rust/**', .github/workflows/package-crates.yml]
+  pull_request:
+    paths: [tinyeval, packages/e2e.sh, 'packages/rust/**', .github/workflows/package-crates.yml]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./prepare.sh && cargo test
+      - run: ./e2e.sh

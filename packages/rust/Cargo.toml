@@ -1,0 +1,21 @@
+[package]
+name = "tinyeval"
+version = "0.10.0" # prepare.sh sets it to tinyeval's _te_version, and build.rs fails when they differ
+edition = "2021"
+description = "Evals for the AI calls in your Rust app: test cases in a bash file, a worker that calls your code"
+license = "MIT"
+repository = "https://github.com/evalship-hq/tinyeval"
+homepage = "https://tinyeval.com"
+readme = "README.md"
+keywords = ["evals", "llm", "testing", "ai"]
+categories = ["development-tools::testing", "command-line-utilities"]
+include = ["src", "build.rs", "tinyeval", "README.md", "LICENSE"]
+
+[[bin]]
+name = "tinyeval"
+path = "src/main.rs"
+doc = false # the library's docs share the name
+
+[[test]]
+name = "stdout"
+harness = false # the test binary itself is the worker, so its stdout must hold only replies
