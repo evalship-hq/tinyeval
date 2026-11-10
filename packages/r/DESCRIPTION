@@ -1,0 +1,15 @@
+Package: tinyeval
+Title: Evals for the AI Calls in Your R Code
+Version: 0.11.0
+Authors@R: person("evalship", email = "hello@evalship.com", role = c("aut", "cre", "cph"))
+Description: Bundles 'tinyeval', one bash script that runs test cases against
+    the AI calls in your app and checks their replies. run() starts it, and
+    worker() answers its test cases from your R code, loaded once.
+License: MIT + file LICENSE
+URL: https://tinyeval.com, https://github.com/evalship-hq/tinyeval
+BugReports: https://github.com/evalship-hq/tinyeval/issues
+Depends: R (>= 4.0)
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+SystemRequirements: bash (>= 3.2)

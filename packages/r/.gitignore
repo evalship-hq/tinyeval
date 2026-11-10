@@ -1,0 +1,3 @@
+# R CMD build and check, run in this folder
+/tinyeval_*.tar.gz
+/tinyeval.Rcheck/
