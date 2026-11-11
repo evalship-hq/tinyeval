@@ -7,7 +7,7 @@ You're adding evals for this repo's AI features with tinyeval, a one-file bash r
 In the repo root, download the runner. Show the user this command and run it only after a yes:
 
 ```sh
-curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.10.0/tinyeval && echo "b061feecf2654a5b6a746dd146a517acb017e30221185cd8552f7d1a9cdccb94  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
+curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.11.1/tinyeval && echo "cd58d35f60902fef7fa03986a47fdcf27cd729369a90186be92b2b8aca031fcc  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
 ```
 
 It's one bash file that needs only bash and curl, and it gets committed with the code. Read it, then run `./tinyeval -v` as a command of its own: permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.

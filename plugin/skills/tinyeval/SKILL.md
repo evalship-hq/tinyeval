@@ -42,7 +42,7 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
 1. Show the user this command and wait for a yes before you run it. It downloads the runner into the repo root, checks its checksum and makes it executable. After it ran, run `./tinyeval -v` as a command of its own, since permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
 
    ```sh
-   curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.10.0/tinyeval && echo "b061feecf2654a5b6a746dd146a517acb017e30221185cd8552f7d1a9cdccb94  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
+   curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.11.1/tinyeval && echo "cd58d35f60902fef7fa03986a47fdcf27cd729369a90186be92b2b8aca031fcc  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
    ```
 
 2. Create `evals/<feature>.sh`. Define `ask` so it runs the code path production uses, with the input as `$1` (and on stdin) and the reply on stdout. Never put a copy of the prompt in the eval: the eval must break when the real prompt or model changes. If no entry point takes one input and prints the reply, add a small script that calls the production function.

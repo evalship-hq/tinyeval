@@ -18,7 +18,7 @@ If a name can't stay, say so in step 7.
 
 ## 3. Keep the checks
 
-Don't rewrite the checks in bash. Add a worker that calls the same function the eval calls now, runs the existing checks on its reply, and prints `{"problems": [...], "output": ...}`. Then grade each test case with `problems .problems`. The README's [worker examples](https://github.com/evalship-hq/tinyeval/tree/v0.10.0/examples/workers/) show the input and reply protocol in several languages. A test case can list several checks' problems in one reply, each graded by its own `check` line.
+Don't rewrite the checks in bash. Add a worker that calls the same function the eval calls now, runs the existing checks on its reply, and prints `{"problems": [...], "output": ...}`. Then grade each test case with `problems .problems`. The README's [worker examples](https://github.com/evalship-hq/tinyeval/tree/v0.11.1/examples/workers/) show the input and reply protocol in several languages. A test case can list several checks' problems in one reply, each graded by its own `check` line.
 
 When the call itself breaks after the app's own retries, such as a rate limit or an outage, start the reply with `#tinyeval couldnt_run REASON`, so it counts as couldn't run, not as a failure. If the harness recorded cost, keep it with `#tinyeval cost_usd DOLLARS`. If it recorded each model call, as a trace or span, write them to `$TINYEVAL_CALLS` instead (the README's "AI calls" section).
 
