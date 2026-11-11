@@ -11,7 +11,7 @@ A prompt or model change can fix the reply you looked at and break three you did
 
 - `./tinyeval` and `evals/*.sh` exist: go to step 2.
 - The repo has other evals (promptfoo, pytest, DeepEval, a script): run those before and after the change, the way steps 2 to 4 describe, and leave tinyeval out. If the user wants to move them, follow [migrate.md](migrate.md) in this skill's folder.
-- No evals: follow "Add tinyeval" below for the feature you're changing. Don't stop to ask first: the eval file and `./tinyeval` are part of your change, and your report names them so the user can drop them.
+- No evals: follow "Add tinyeval" below for the feature you're changing. Write the eval file and make the change without asking: the eval file is part of your change, and your report names it so the user can drop it. The runner is a download, so end with its command and wait for a yes before you run it. Step 2 then runs the old version first.
 
 Always make the change the user asked for, even when the check can't run (a missing key, no network). Then say what the check still needs and the command that runs it.
 
@@ -39,7 +39,7 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
 
 ## Add tinyeval
 
-1. In the repo root, download it. Then run `./tinyeval -v` as a command of its own, since permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
+1. Show the user this command and wait for a yes before you run it. It downloads the runner into the repo root, checks its checksum and makes it executable. After it ran, run `./tinyeval -v` as a command of its own, since permission checks block downloading and running a file in one step. Add `eval-results.json` to `.gitignore`. On Windows, run it in Git Bash.
 
    ```sh
    curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/download/v0.10.0/tinyeval && echo "b061feecf2654a5b6a746dd146a517acb017e30221185cd8552f7d1a9cdccb94  tinyeval" | shasum -a 256 -c && chmod +x tinyeval
@@ -73,7 +73,7 @@ In a few lines: passing test cases before and after (7 of 10, then 10 of 10), wh
 
 4. Keys. `ask` needs the key the app already reads; if it isn't set, ask the user for it. Never fake or mock the reply. `judge` uses `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (plus `TINYEVAL_JUDGE_MODEL`). With none set, a command that reads the prompt on stdin works too, such as `TINYEVAL_JUDGE='claude -p --model haiku'` in Claude Code. Pick a judge model the feature doesn't use.
 
-5. Add this section to the repo's AGENTS.md, or to its CLAUDE.md if that's the only one, so the next agent runs the evals without this skill. If the repo has neither, ask whether to create AGENTS.md with it.
+5. So the next agent runs the evals without this skill, offer this section for the repo's AGENTS.md, or its CLAUDE.md if that's the only one, or a new AGENTS.md if it has neither. Show the user the section and the file, and add it only after a yes.
 
    ```markdown
    ## Evals

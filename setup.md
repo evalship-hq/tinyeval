@@ -6,7 +6,7 @@ You're adding evals for this repo's AI features with tinyeval, a one-file bash r
 
 ## 1. Install
 
-In the repo root, download the runner:
+In the repo root, download the runner. Show the user this command and run it only after a yes:
 
 ```sh
 curl -fsSLo tinyeval https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval && chmod +x tinyeval
@@ -84,7 +84,7 @@ jobs:
 
 ## 7. Tell coding agents
 
-Add this section to the repo's AGENTS.md, or to its CLAUDE.md if that's the only one. If the repo has neither, ask the user whether to create AGENTS.md with it.
+Offer this section for the repo's AGENTS.md, or its CLAUDE.md if that's the only one, or a new AGENTS.md if it has neither. Show the user the section and the file, and add it only after a yes.
 
 ```markdown
 ## Evals
