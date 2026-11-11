@@ -26,7 +26,8 @@ test_case "refund after the window" "Can I still return my shoes? They arrived 4
 int main() {
     std::string input;
     while (std::getline(std::cin, input, '\0')) {
-        std::string reply = std::getenv("ANTHROPIC_API_KEY")
+        const char* key = std::getenv("ANTHROPIC_API_KEY");
+        std::string reply = key && *key
             ? support::answer(input)
             : "#tinyeval couldnt_run ANTHROPIC_API_KEY isn't set\n";
         std::cout << reply << '\0' << std::flush;

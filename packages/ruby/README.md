@@ -28,7 +28,7 @@ require_relative "../lib/support"
 
 support = Support.new
 Tinyeval.worker do |input|
-  raise Tinyeval::CouldntRun, "ANTHROPIC_API_KEY isn't set" unless ENV["ANTHROPIC_API_KEY"]
+  raise Tinyeval::CouldntRun, "ANTHROPIC_API_KEY isn't set" if ENV["ANTHROPIC_API_KEY"].to_s.empty?
   support.answer(input)
 end
 ```

@@ -33,7 +33,7 @@ import 'package:tinyeval/tinyeval.dart';
 final support = Support(); // built on the first input, inside the worker
 
 Future<void> main() => worker((input) {
-  if (Platform.environment['ANTHROPIC_API_KEY'] == null) throw CouldntRun('no ANTHROPIC_API_KEY');
+  if ((Platform.environment['ANTHROPIC_API_KEY'] ?? '').isEmpty) throw CouldntRun('no ANTHROPIC_API_KEY');
   return support.answer(input);
 });
 ```

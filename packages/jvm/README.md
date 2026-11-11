@@ -42,7 +42,7 @@ public final class EvalWorker {
 
     public static void main(String[] args) {
         Tinyeval.worker(input -> {
-            if (System.getenv("ANTHROPIC_API_KEY") == null) throw new CouldntRun("ANTHROPIC_API_KEY isn't set");
+            if (System.getenv().getOrDefault("ANTHROPIC_API_KEY", "").isEmpty()) throw new CouldntRun("ANTHROPIC_API_KEY isn't set");
             if (support == null) support = new Support(); // built on the first input
             return support.answer(input);
         });

@@ -31,7 +31,7 @@ local tinyeval = require("tinyeval") -- first, so your app's output stays off th
 local support = require("support").new()
 
 tinyeval.worker(function(input)
-  if not os.getenv("ANTHROPIC_API_KEY") then
+  if (os.getenv("ANTHROPIC_API_KEY") or "") == "" then
     error(tinyeval.CouldntRun("ANTHROPIC_API_KEY isn't set"))
   end
   return support:answer(input)

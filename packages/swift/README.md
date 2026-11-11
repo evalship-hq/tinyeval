@@ -40,7 +40,7 @@ import Tinyeval
 
 let support = Support()
 await Tinyeval.worker { input in
-    guard ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] != nil else {
+    guard !(ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] ?? "").isEmpty else {
         throw Tinyeval.CouldntRun("ANTHROPIC_API_KEY isn't set")
     }
     return try await support.answer(input)
