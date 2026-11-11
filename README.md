@@ -40,6 +40,28 @@ test_case "refund after the window" "Can I return shoes that arrived 40 days ago
 
 tinyeval needs bash 3.2 or later, which macOS, most Linux and Git for Windows come with (on Alpine, `apk add bash`). `judge` also uses curl.
 
+### Install with your package manager
+
+The committed `./tinyeval` needs nothing installed. To keep tinyeval in your manifest instead, every package ships the same runner plus a worker helper for your language, and Dependabot or Renovate can update it:
+
+| Language | Install |
+|---|---|
+| [Python](packages/python) | `pip install tinyeval-cli` or `uv add --dev tinyeval-cli` |
+| [JavaScript, TypeScript](packages/npm) | `npm install --save-dev tinyeval-cli` |
+| [Ruby](packages/ruby) | `bundle add tinyeval --group development` |
+| [Go](go) | `go get -tool github.com/evalship-hq/tinyeval/go/cmd/tinyeval` |
+| [Java, Kotlin, Scala](packages/jvm) | `com.evalship:tinyeval` from Maven Central |
+| [C#](packages/dotnet) | `dotnet tool install Tinyeval.Tool` and `dotnet add package Tinyeval` |
+| [PHP](packages/php) | `composer require --dev evalship/tinyeval` |
+| [Rust](packages/rust) | `cargo install tinyeval` and `cargo add --dev tinyeval` |
+| [Swift](packages/swift) | `.package(url: "https://github.com/evalship-hq/tinyeval-swift", from: "0.11.0")` |
+| [Dart](packages/dart) | `dart pub add --dev tinyeval` |
+| [Elixir](packages/elixir) | `{:tinyeval, "~> 0.11", only: [:dev, :test], runtime: false}` in `mix.exs` |
+| [Lua](packages/lua) | `luarocks install --tree lua_modules tinyeval` |
+| [R](packages/r) | `install.packages("tinyeval", repos = c("https://evalship-hq.r-universe.dev", getOption("repos")))` |
+| [Any, with Homebrew](packages/homebrew) | `brew install evalship-hq/tap/tinyeval` |
+| [GitHub Actions](packages/action) | `uses: evalship-hq/tinyeval-action@v0` |
+
 Or start from a template repo with a support bot, its test cases and a CI workflow: [Python](https://github.com/evalship-hq/python-llm-evals), [TypeScript](https://github.com/evalship-hq/typescript-llm-evals), [JavaScript](https://github.com/evalship-hq/javascript-llm-evals), [Go](https://github.com/evalship-hq/go-llm-evals), [Java](https://github.com/evalship-hq/java-llm-evals), [C#](https://github.com/evalship-hq/csharp-llm-evals), [Ruby](https://github.com/evalship-hq/ruby-llm-evals), [PHP](https://github.com/evalship-hq/php-llm-evals), [Rust](https://github.com/evalship-hq/rust-llm-evals), [Kotlin](https://github.com/evalship-hq/kotlin-llm-evals), [Swift](https://github.com/evalship-hq/swift-llm-evals), [Dart](https://github.com/evalship-hq/dart-llm-evals), [Elixir](https://github.com/evalship-hq/elixir-llm-evals), [C++](https://github.com/evalship-hq/cpp-llm-evals), [Scala](https://github.com/evalship-hq/scala-llm-evals), [Lua](https://github.com/evalship-hq/lua-llm-evals) or [R](https://github.com/evalship-hq/r-llm-evals).
 
 ## Check every prompt change
@@ -254,7 +276,7 @@ Since the last run
 tinyeval update
 ```
 
-This replaces `./tinyeval` with the latest release. Commit it. In a terminal, tinyeval checks for a new release once a day and names it under the summary. On GitHub Actions, it checks on every run and names a new release in the job summary. Other CI never checks. The check downloads the latest tinyeval from GitHub and sends nothing about your evals.
+This replaces `./tinyeval` with the latest release. Commit it. Installed from a package manager, `tinyeval update` names that package manager's update command instead. In a terminal, tinyeval checks for a new release once a day and names it under the summary. On GitHub Actions, it checks on every run and names a new release in the job summary. Other CI never checks. The check downloads the latest tinyeval from GitHub and sends nothing about your evals.
 
 ## In CI
 
@@ -272,6 +294,8 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
+
+Without a committed `./tinyeval`, [tinyeval-action](https://github.com/evalship-hq/tinyeval-action) installs and runs it: replace the `run` step with `uses: evalship-hq/tinyeval-action@v0` and `with: { args: -n 3 }`.
 
 ## Results file
 
