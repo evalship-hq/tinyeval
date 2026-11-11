@@ -160,6 +160,12 @@ jobs:
             echo "Hex has tinyeval ${GITHUB_REF_NAME#v} already"
           else
             mix hex.publish --yes
+            # A package with staged publishing on waits for an owner's approval, and mix still exits 0.
+            if ! curl -fs -o /dev/null "https://hex.pm/api/packages/tinyeval/releases/${GITHUB_REF_NAME#v}"; then
+              url="https://hex.pm/dashboard/staged-releases/hexpm/tinyeval/${GITHUB_REF_NAME#v}"
+              echo "::warning::Hex staged tinyeval ${GITHUB_REF_NAME#v}. Approve it within 7 days: $url"
+              echo "Hex staged tinyeval ${GITHUB_REF_NAME#v}. Approve it within 7 days: $url" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
 
   # NuGet, packages/dotnet: Tinyeval, the worker library, and Tinyeval.Tool, the command. Trusted publishing swaps
