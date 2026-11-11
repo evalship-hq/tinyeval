@@ -1,0 +1,784 @@
+#!/usr/bin/env bash
+# tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
+# Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
+
+_te_version=0.11.0
+_te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [eval files...]
+       tinyeval update
+       tinyeval share [file]
+
+Runs every test case in the eval files (default: evals/*.sh) and writes the
+results to eval-results.json. Exits 1 when an eval fails or couldn't run
+(its AI call failed or timed out, or the judge couldn't answer).
+
+  -n runs     run each test case this many times; it passes when at least half pass
+  -j jobs     run this many test cases at once (default: 4)
+  -t seconds  stop an AI call that takes longer (default: 300)
+  -k text     run only the test cases whose name contains text
+  -o file     where to write the results (default: eval-results.json)
+  -x file     also write them as JUnit XML, which most CI systems show
+  -v          print the version
+  update      replace this file with the latest release
+  share       put the results (default: eval-results.json) behind a private
+              link on evalship.com for 30 days, with their inputs and replies
+
+An eval file is bash. It defines ask, then lists test cases, each followed
+by the lines that grade its reply:
+
+  ask() { ruby bin/answer.rb; }   the AI call: input as \$1 and on stdin, reply on stdout
+  worker COMMAND...               or keep COMMAND running, one per -j: it reads each
+                                  input up to a NUL byte and prints the reply and a NUL
+                                  A reply may start with #tinyeval couldnt_run REASON
+                                  or #tinyeval cost_usd DOLLARS lines, and the app may
+                                  add each AI call it made to the file \$TINYEVAL_CALLS
+                                  as a line of JSON: {\"call\": NAME, \"model\", \"input\", ...}
+  test_case NAME [INPUT]          starts a test case; without INPUT it reads a heredoc
+  contains TEXT                   the reply contains TEXT, ignoring case
+  not_contains TEXT               the reply doesn't contain TEXT, ignoring case
+  matches REGEX                   the reply matches the extended regex
+  equals TEXT                     the reply is exactly TEXT
+  expect COMMAND...               COMMAND exits 0 with the reply on stdin
+  json FILTER                     the reply is JSON and jq's FILTER is true for it
+  problems FILTER                 jq's FILTER lists what's wrong with the JSON reply;
+                                  an empty list passes, and each item is a failure
+  target FILE#NAME                the code the test case covers, kept in the results file
+  check NAME                      the lines after it grade the same reply as another
+                                  eval, named \"TEST CASE / NAME\"
+  judge CRITERION                 a model says the reply meets CRITERION; it needs
+                                  OPENROUTER_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY
+
+More: https://github.com/evalship-hq/tinyeval"
+_te_download=${TINYEVAL_DOWNLOAD_URL:-https://github.com/evalship-hq/tinyeval/releases/latest/download/tinyeval}
+
+# A package manager's copy (gem, pip, npm...) updates through it, so the package's wrapper sets the command that does.
+# Not passed on: a repo's own ./tinyeval, run below, updates itself.
+_te_pkg=${TINYEVAL_PACKAGE_UPDATE-}
+unset TINYEVAL_PACKAGE_UPDATE
+
+# The tinyeval on PATH runs the repo's own ./tinyeval, so each repo keeps the version its evals were written for.
+if [ -f ./tinyeval ] && [ -x ./tinyeval ] && ! [ ./tinyeval -ef "$0" ]; then exec ./tinyeval "$@"; fi
+
+# Whether version $1 is newer than version $2.
+_te_newer() {
+  awk -v a="$1" -v b="$2" 'BEGIN { split(a, x, "."); split(b, y, ".")
+    for (i = 1; i <= 3; i++) if (x[i] + 0 != y[i] + 0) exit !(x[i] + 0 > y[i] + 0); exit 1 }'
+}
+
+if [ "${1-}" = update ]; then
+  [ -z "$_te_pkg" ] || { echo "tinyeval: a package manager installed this tinyeval. Update it with: $_te_pkg" >&2; exit 2; }
+  # Next to this file, so the rename below replaces it in one step: bash may still be reading the old one.
+  _te_new="$0.download"
+  if ! curl -fsSL "$_te_download" -o "$_te_new" || ! _te_latest=$(sed -n 's/^_te_version=//p' "$_te_new") ||
+    [ -z "$_te_latest" ] || ! bash -n "$_te_new"; then
+    rm -f "$_te_new"
+    echo "tinyeval: couldn't download the latest tinyeval from $_te_download" >&2
+    exit 2
+  fi
+  if ! _te_newer "$_te_latest" "$_te_version"; then
+    rm -f "$_te_new"
+    echo "tinyeval $_te_version is the latest version"
+    exit 0
+  fi
+  chmod +x "$_te_new" && mv -f "$_te_new" "$0" || exit 2
+  if [ -d .git ] && [ "$0" -ef ./tinyeval ]; then _te_commit=" Commit it with your code."; fi
+  echo "Updated $0 from $_te_version to $_te_latest.${_te_commit-}"
+  exit 0
+fi
+
+# A private link to the results on evalship.com, like a secret gist, for whoever you send it to.
+if [ "${1-}" = share ]; then
+  _te_file=${2:-eval-results.json}
+  [ -f "$_te_file" ] || { echo "tinyeval: no $_te_file to share. Run tinyeval first, or name a results file" >&2; exit 2; }
+  _te_said=$(curl -sS -m 60 -w '\n%{http_code}' -A "tinyeval/$_te_version" -H 'Accept: text/plain' \
+    -H 'Content-Type: application/octet-stream' --data-binary @"$_te_file" \
+    "${TINYEVAL_SHARE_URL:-https://evalship.com/api/v1/shares}" 2>&1)
+  _te_code=${_te_said##*$'\n'} _te_said=${_te_said%$'\n'*}
+  _te_said=${_te_said%$'\n'}
+  [ "$_te_code" = 201 ] || { echo "tinyeval: couldn't share $_te_file: $_te_said" >&2; exit 2; }
+  printf '%s\n' "$_te_said"
+  # The first line ends with the link.
+  _te_url=${_te_said%%$'\n'*}
+  [ -z "${GITHUB_STEP_SUMMARY-}" ] || printf '\nShared results: %s\n' "${_te_url##* }" >>"$GITHUB_STEP_SUMMARY"
+  exit 0
+fi
+
+_te_runs=1 _te_jobs=4 _te_timeout=300 _te_only='' _te_junit=''
+_te_results=eval-results.json
+while getopts n:j:t:k:o:x:vh _te_opt; do
+  case $_te_opt in
+    n) _te_runs=$OPTARG ;;
+    j) _te_jobs=$OPTARG ;;
+    t) _te_timeout=$OPTARG ;;
+    k) _te_only=$OPTARG ;;
+    o) _te_results=$OPTARG ;;
+    x) _te_junit=$OPTARG ;;
+    v) echo "tinyeval $_te_version"; exit 0 ;;
+    h) echo "$_te_usage"; exit 0 ;;
+    *) echo "$_te_usage" >&2; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
+for _te_opt in "-n $_te_runs" "-j $_te_jobs" "-t $_te_timeout"; do
+  case ${_te_opt#-? } in '' | *[!0-9]* | 0) echo "tinyeval: ${_te_opt%% *} takes a whole number, 1 or more" >&2; exit 2 ;; esac
+done
+[ $# -gt 0 ] || set -- evals/*.sh
+for _te_f in "$@"; do
+  [ -f "$_te_f" ] || { echo "tinyeval: no eval file at $_te_f. Create one: https://github.com/evalship-hq/tinyeval#quickstart" >&2; exit 2; }
+done
+
+# In a terminal, once a day, look up the latest release in the background. The summary names it. GitHub Actions
+# gets its own check per run, below, for the job summary; other CI never checks.
+_te_cache=${XDG_CACHE_HOME:-$HOME/.cache}/tinyeval
+if [ -t 1 ] && [ -z "${CI-}" ]; then
+  _te_check=1
+  if [ -z "$(find "$_te_cache/latest" -mmin -1440 2>/dev/null)" ]; then
+    (
+      mkdir -p "$_te_cache" && touch "$_te_cache/latest" # also when offline, so the next try is a day later
+      curl -fsSL -m 20 "$_te_download" | sed -n 's/^_te_version=//p' >"$_te_cache/latest.new"
+      [ -s "$_te_cache/latest.new" ] && mv -f "$_te_cache/latest.new" "$_te_cache/latest"
+    ) >/dev/null 2>&1 &
+  fi
+fi
+
+# A coding agent's sandbox may not let it write to $TMPDIR, so the repo holds it then, until tinyeval exits.
+_te_tmp=$(mktemp -d 2>/dev/null || mktemp -d "$PWD/.tinyeval.XXXXXX") || exit 2
+# Git Bash: native Windows programs, like its curl.exe, need C:/ paths, not /tmp ones.
+_te_win=''
+if command -v cygpath >/dev/null; then _te_tmp=$(cygpath -m "$_te_tmp") _te_win=1; fi
+trap 'rm -rf "$_te_tmp"' EXIT
+if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
+  curl -fsSL -m 5 "$_te_download" 2>/dev/null | sed -n 's/^_te_version=//p' >"$_te_tmp/latest" &
+  _te_check_pid=$!
+fi
+# With an OTLP endpoint set, each run of ask tags its OpenTelemetry spans with its eval's otel id (_te_case), this
+# tinyeval run's part being the temp dir's random suffix.
+_te_otel='' _te_otel_attrs=${OTEL_RESOURCE_ATTRIBUTES-}
+[ -z "${OTEL_EXPORTER_OTLP_ENDPOINT-}${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT-}" ] || _te_otel=${_te_tmp##*.}
+# Background test cases ignore Ctrl-C, as bash's background jobs do, so stop the whole process group.
+_te_stop() {
+  trap '' TERM
+  # Git Bash: native programs like python.exe ignore signals, so end each child's Windows process tree.
+  if [ -r /proc/$$/winpid ]; then
+    for _te_p in $(ps | awk -v me=$$ '$2 == me { print $4 }'); do taskkill //F //T //PID "$_te_p" >/dev/null 2>&1; done
+  fi
+  kill -TERM 0 2>/dev/null
+  exit 130
+}
+trap _te_stop INT TERM
+if [ -t 1 ]; then _te_g=$'\033[32m' _te_r=$'\033[31m' _te_y=$'\033[33m' _te_d=$'\033[2m' _te_0=$'\033[0m'; fi
+_te_tab=$'\t'
+
+# --- what an eval file uses ---------------------------------------------------
+
+# test_case NAME [INPUT]: starts a test case. Without INPUT it reads one from stdin (a heredoc).
+test_case() {
+  local next_input
+  if [ $# -ge 2 ]; then next_input=$2; else next_input=$(cat); fi
+  _te_run_case
+  _te_name=$1 _te_file=${BASH_SOURCE[1]} _te_asserts=() _te_targets=() _te_input=$next_input
+  # Test cases with one name would merge into one eval, so a later one gets a number and fails.
+  local n=1
+  while [[ $_te_names == *$'\n'"$_te_name"$'\n'* ]]; do n=$((n + 1)); _te_name="$1 #$n"; done
+  _te_names+="$_te_name"$'\n'
+  [ $n -eq 1 ] || _te_add _te_fail "another test case in this file is named \"$1\". Give each its own name"
+}
+
+contains() { _te_add _te_contains "$@"; }         # the reply contains TEXT, ignoring case
+not_contains() { _te_add _te_not_contains "$@"; } # the reply doesn't contain TEXT, ignoring case
+matches() { _te_add _te_matches "$@"; }           # the reply matches an extended regex
+equals() { _te_add _te_equals "$@"; }             # the reply is exactly TEXT
+expect() { _te_add _te_expect "$@"; }             # COMMAND exits 0 with the reply on its stdin
+json() { _te_add _te_json_is "$@"; }              # the reply is JSON and jq's FILTER is true for it
+problems() { _te_add _te_problems "$@"; }         # jq's FILTER lists what's wrong with the reply; none passes
+# check NAME: the grading lines after it are another eval of the same reply, named "TEST CASE / NAME". One AI call can
+# then show as several evals, each passing or failing on its own.
+check() {
+  [ -n "$_te_name" ] || { echo "tinyeval: check comes before any test_case in ${BASH_SOURCE[1]}" >&2; return 1; }
+  _te_asserts+=("#check $1")
+}
+# target FILE#NAME...: the code this test case covers, for whatever reads the results file. It grades nothing.
+target() {
+  [ -n "$_te_name" ] || { echo "tinyeval: target comes before any test_case in ${BASH_SOURCE[1]}" >&2; return 1; }
+  _te_targets+=("$@")
+}
+judge() { _te_add _te_judge "$@"; }               # a model says the reply meets CRITERION
+
+# worker COMMAND...: the AI call stays running instead of starting for each input, as an app that boots slowly
+# needs. One runs per -j. It reads an input up to a NUL byte on stdin, then prints the reply and a NUL byte.
+worker() {
+  [ "$_te_jobs" -le 100 ] || { echo "tinyeval: worker runs at most 100 at once, so lower -j" >&2; exit 2; }
+  _te_worker=("$@")
+}
+
+# --- internals ----------------------------------------------------------------
+
+_te_add() {
+  [ -n "$_te_name" ] || { echo "tinyeval: ${1#_te_} comes before any test_case in ${BASH_SOURCE[2]}" >&2; return 1; }
+  local a
+  printf -v a '%q ' "$@"
+  _te_asserts+=("$a")
+}
+
+_te_fail() { _te_failures="${_te_failures:+$_te_failures$'\n'}$*"; }
+# The AI call or the judge broke. A run with only these says nothing about the reply: it couldn't run.
+_te_error() { _te_errors="${_te_errors:+$_te_errors$'\n'}$*"; _te_fail "$@"; }
+
+# A line the eval file runs that isn't a command, like a misspelled contains, fails its test case instead of grading nothing.
+_te_unknown() { [ -z "$_te_name" ] || _te_add _te_fail "not a tinyeval line: $1"; }
+
+# Whether $1 contains $2, ignoring case.
+_te_has() {
+  shopt -s nocasematch
+  [[ $1 == *"$2"* ]]
+  local found=$?
+  shopt -u nocasematch
+  return $found
+}
+_te_contains() { _te_has "$output" "$1" || _te_fail "expected to contain \"$1\""; }
+_te_not_contains() { ! _te_has "$output" "$1" || _te_fail "expected not to contain \"$1\""; }
+_te_matches() { [[ $output =~ $1 ]] || _te_fail "expected to match /$1/"; }
+_te_equals() { [ "$output" = "$1" ] || _te_fail "expected exactly \"$1\""; }
+_te_expect() {
+  local said code
+  said=$(printf '%s' "$output" | "$@" 2>&1) && return
+  code=$?
+  _te_fail "$*: $(printf '%s' "${said:-exited $code}" | tail -n 1)"
+}
+# The app's own checks, run where the reply is made (a worker, say), return their problems in the reply. A filter
+# that gives null fails too: a misspelled field would otherwise pass every reply.
+_te_problems() {
+  local said
+  command -v jq >/dev/null || { _te_error "problems needs jq: https://jqlang.org/download"; return; }
+  if ! said=$(printf '%s' "$output" | jq -r --arg f "$1" "($1) | if type == \"array\" then .[] | (strings // tojson)
+    elif type == \"string\" then . else error(\"\\(\$f) is \\(tojson), not a list\") end" 2>&1); then
+    _te_fail "problems: $(printf '%s' "$said" | tail -n 1 | sed 's/^jq: error (at [^)]*): //')"
+    return
+  fi
+  said=${said//$'\r'/} # jq.exe on Git Bash ends its lines with CRLF
+  [ -z "$said" ] || _te_fail "$said"
+}
+
+_te_json_is() {
+  local said
+  command -v jq >/dev/null || { _te_error "json needs jq: https://jqlang.org/download"; return; }
+  said=$(printf '%s' "$output" | jq -e "$1" 2>&1) && return
+  # 1: the filter gave false or null. Anything else: the reply isn't JSON, or the filter has an error.
+  if [ $? -eq 1 ]; then _te_fail "json: $1 is ${said:-false}"; else _te_fail "json: $(printf '%s' "$said" | tail -n 1)"; fi
+}
+
+_te_judge() {
+  local reply verdict
+  reply=$(_te_ask_judge "You grade one reply from an AI feature against one criterion.
+
+Criterion: $1
+
+The input it got:
+<input>
+$_te_input
+</input>
+
+Its reply:
+<reply>
+$output
+</reply>
+
+Does the reply meet the criterion? Answer PASS or FAIL on the first line, then one sentence on why.") ||
+    { _te_error "judge couldn't run: $reply"; return; }
+  # The first word of the first line, after markdown or a label like "Verdict:", so "does not PASS" isn't a pass.
+  verdict=$(printf '%s\n' "$reply" | awk 'NF { sub(/^[^[:alnum:]]+/, ""); sub(/^[[:alpha:]]+:[^[:alnum:]]*/, "")
+    if ($0 ~ /^(PASS|FAIL)([^[:alnum:]]|$)/) print substr($0, 1, 4); exit }')
+  reply=$(printf '%s' "$reply" | tr '\n' ' ' | sed -E 's/^[^A-Z]*(PASS|FAIL)[^[:alnum:]]*//' | cut -c 1-300)
+  case $verdict in
+    PASS) ;;
+    FAIL) _te_fail "judge: $reply" ;;
+    *) _te_error "judge gave no PASS or FAIL: $reply" ;;
+  esac
+}
+
+# Sets the variable $1 to a JSON string holding $2, without starting a process unless $2 has control characters.
+# Drops those but newline and tab, so ANSI colors lose their ESC.
+_te_json() {
+  # bs is two backslashes, not an escaped quote.
+  # shellcheck disable=SC1003
+  local _te_s=$2 bs='\\' q='\"' n='\n' t='\t' tab=$'\t'
+  case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
+  # bash 3.2 takes seconds to substitute in tens of KB, so sed and awk escape a long text.
+  if [ ${#_te_s} -gt 2000 ]; then
+    _te_s=$(printf '%s\n' "$_te_s" | LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e "s/$tab/\\\\t/g" |
+      LC_ALL=C awk 'NR > 1 { printf "%s", "\\n" } { printf "%s", $0 }')
+  else
+    _te_s=${_te_s//\\/"$bs"} _te_s=${_te_s//\"/"$q"} _te_s=${_te_s//$'\n'/"$n"} _te_s=${_te_s//$'\t'/"$t"}
+  fi
+  # shellcheck disable=SC2089 # it sets the variable named in $1, which is always quoted where it's used
+  printf -v "$1" '"%s"' "$_te_s"
+}
+
+# Sets the variable $1 to $2 for XML text or an attribute, keeping newline and tab.
+_te_xml() {
+  # Quoted, as bash 5.2 reads an unquoted & in a replacement as the text it matched.
+  local _te_s=$2 amp='&amp;' lt='&lt;' gt='&gt;' quot='&quot;'
+  case $_te_s in *[[:cntrl:]]*) _te_s=$(printf '%s' "$_te_s" | tr -d '\000-\010\013-\037') ;; esac
+  if [ ${#_te_s} -gt 2000 ]; then # as in _te_json
+    _te_s=$(printf '%s\n' "$_te_s" | LC_ALL=C sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g')
+  else
+    _te_s=${_te_s//&/"$amp"} _te_s=${_te_s//</"$lt"} _te_s=${_te_s//>/"$gt"} _te_s=${_te_s//\"/"$quot"}
+  fi
+  printf -v "$1" '%s' "$_te_s"
+}
+
+# The string value of the last "KEY": "..." in JSON on stdin, still escaped.
+# shortcut: a regex, not a parser; fine for one chat completion, use jq if this ever reads more.
+_te_json_get() { tr -d '\n' | sed -nE 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p'; }
+
+# Reads the AI calls the app wrote to the file $1, one JSON object a line, as evalship's /api/v1/calls takes them:
+# _te_calls gets them joined by commas for the results file, _te_call_lines by newlines, and cost their summed "cost"
+# unless the reply said it. A line that isn't an object fails the test case and is left out, so the results stay JSON.
+# shortcut: only a line's shape is checked, as tinyeval doesn't need jq; an app's JSON encoder writes valid lines.
+_te_read_calls() {
+  local l n=0 bad=''
+  _te_calls='' _te_call_lines=''
+  [ -s "$1" ] || return 0
+  while IFS= read -r l || [ -n "$l" ]; do
+    l=${l%$'\r'} n=$((n + 1))
+    [ -n "$l" ] || continue
+    if [[ $l != "{"*"}" ]]; then
+      [ -n "$bad" ] || _te_fail "line $n of \$TINYEVAL_CALLS isn't a JSON object on one line (write each call unindented): ${l:0:80}"
+      bad=1
+      continue
+    fi
+    _te_calls=${_te_calls:+$_te_calls,}$l _te_call_lines=$_te_call_lines$l$'\n'
+  done <"$1"
+  [ -z "$_te_calls" ] || [ -n "$cost" ] ||
+    cost=$(printf '%s' "$_te_call_lines" | LC_ALL=C awk '
+      match($0, /"cost"[ \t]*:[ \t]*[0-9][0-9.eE+-]*/) { v = substr($0, RSTART, RLENGTH); sub(/^"cost"[ \t]*:[ \t]*/, "", v); s += v; n++ }
+      END { if (n) printf "%.10g", s }')
+}
+
+# "call (model) → call (model)" for the AI calls in $1, one JSON object a line.
+_te_call_names() {
+  printf '%s' "$1" | LC_ALL=C awk '
+    function str(k,   v) {
+      if (!match($0, "\"" k "\"[ \t]*:[ \t]*\"([^\"\\\\]|\\\\.)*\"")) return ""
+      v = substr($0, RSTART, RLENGTH); sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", v); return substr(v, 1, length(v) - 1)
+    }
+    { c = str("call"); m = str("model"); out = out (NR > 1 ? " → " : "") (c == "" ? "?" : c) (m == "" ? "" : " (" m ")") }
+    END { print out }'
+}
+
+# Prints the judge model's answer to $1, or why there is none and returns 1.
+_te_ask_judge() {
+  if [ -n "${TINYEVAL_JUDGE:-}" ]; then printf '%s' "$1" | sh -c "$TINYEVAL_JUDGE"; return; fi
+  local url=${TINYEVAL_JUDGE_URL:-} key=${TINYEVAL_JUDGE_KEY:-} model=${TINYEVAL_JUDGE_MODEL:-} res content jmodel jprompt
+  if [ -z "$url" ]; then
+    if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+      url=https://openrouter.ai/api/v1 key=${key:-$OPENROUTER_API_KEY} model=${model:-anthropic/claude-haiku-5.5}
+    elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+      url=https://api.anthropic.com/v1 key=${key:-$ANTHROPIC_API_KEY} model=${model:-claude-haiku-5-5}
+    elif [ -n "${OPENAI_API_KEY:-}" ]; then
+      url=https://api.openai.com/v1 key=${key:-$OPENAI_API_KEY}
+    else
+      echo "set OPENROUTER_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY, or TINYEVAL_JUDGE to a command"; return 1
+    fi
+  fi
+  [ -n "$model" ] || { echo "set TINYEVAL_JUDGE_MODEL to the model the judge should use"; return 1; }
+  command -v curl >/dev/null || { echo "judge needs curl, or TINYEVAL_JUDGE set to a command"; return 1; }
+  # The key goes in a header file, not the command line, so it doesn't show in ps.
+  (umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$_te_dir/auth")
+  # --retry waits out 429 and 5xx replies. -o, because on stdout each retry's reply would add to the last one.
+  _te_json jmodel "$model"
+  _te_json jprompt "$1"
+  if ! res=$(printf '{"model":%s,"messages":[{"role":"user","content":%s}]}' "$jmodel" "$jprompt" |
+    curl -sS --retry 3 --max-time 120 -o "$_te_dir/judge.json" "${url%/}/chat/completions" -H "@$_te_dir/auth" \
+      -H 'Content-Type: application/json' --data-binary @- 2>&1) || ! res=$(cat "$_te_dir/judge.json"); then
+    echo "$res"; return 1
+  fi
+  content=$(printf '%s' "$res" | _te_json_get content)
+  if [ -z "$content" ]; then
+    content=$(printf '%s' "$res" | _te_json_get message)
+    printf '%s' "${content:-$res}" | cut -c 1-300
+    return 1
+  fi
+  printf '%s' "$content" | sed -e 's/\\[nrt]/ /g' -e 's/\\"/"/g' -e 's/\\\//\//g' -e 's/\\\\/\\/g'
+}
+
+# Starts the test case test_case set up, in the background. Up to -j run at once; they print in file order.
+_te_run_case() {
+  [ -n "$_te_name" ] || return 0
+  if [ -z "$_te_only" ] || _te_has "$_te_name" "$_te_only"; then
+    _te_n=$((_te_n + 1))
+    local dir="$_te_tmp/$_te_i.$_te_n"
+    # The slot the test case -j back had, as the oldest one is collected first: its worker is free.
+    _te_slot=$(((_te_n - 1) % _te_jobs))
+    [ ${#_te_worker[@]} -eq 0 ] || _te_worker_up "$_te_slot"
+    { mkdir "$dir" && _te_case "$dir" >"$dir/printed"; } &
+    _te_pids+=("$!")
+    _te_dirs+=("$dir")
+    while [ ${#_te_pids[@]} -ge "$_te_jobs" ]; do _te_collect; done
+  fi
+  _te_name=
+}
+
+# cat without starting a process, as tinyeval's main loop needs two per test case.
+_te_cat() { local l; while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l"; done <"$1"; }
+
+# Waits for the oldest running test case, then prints it and keeps its results.
+_te_collect() {
+  wait "${_te_pids[0]}"
+  [ -n "$_te_header" ] || { echo "$_te_suite"; _te_header=1; }
+  _te_cat "${_te_dirs[0]}/printed"
+  _te_cat "${_te_dirs[0]}/results.jsonl" >>"$_te_tmp/results.jsonl"
+  [ ! -f "${_te_dirs[0]}/junit.xml" ] || _te_cat "${_te_dirs[0]}/junit.xml" >>"$_te_tmp/$_te_i.junit"
+  [ ! -f "${_te_dirs[0]}/summary.md" ] || _te_cat "${_te_dirs[0]}/summary.md" >>"$_te_tmp/summary.md"
+  _te_pids=("${_te_pids[@]:1}")
+  _te_dirs=("${_te_dirs[@]:1}")
+}
+
+# Starts the worker for slot $1, or a new one when its last call broke it. Its fifos are fds 20+2*slot and 21+2*slot.
+_te_worker_up() {
+  local s=$1 w="$_te_tmp/$_te_i.w$1" f
+  if [ -n "${_te_wpids[$s]-}" ]; then
+    [ -f "$w.broken" ] || return 0
+    _te_worker_down "$s"
+    rm "$w.broken"
+  fi
+  _te_wn=$((_te_wn + 1))
+  f="$w.$_te_wn"
+  mkfifo "$f.in" "$f.out" || exit 2
+  # One calls file per slot: a slot's worker answers one test case at a time, which clears it first.
+  if [ -n "$_te_win" ]; then
+    # Git Bash: native programs, like python.exe, can't open its FIFOs, so cat carries the bytes over plain pipes.
+    { cat <"$f.in" | TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" | cat >"$f.out"; } 2>"$f.err" &
+  else
+    TINYEVAL_CALLS="$w.calls" "${_te_worker[@]}" <"$f.in" >"$f.out" 2>"$f.err" &
+  fi
+  _te_wpids[s]=$! _te_werrs[s]=$f.err
+  eval "exec $((20 + 2 * s))>\"\$f.in\" $((21 + 2 * s))<\"\$f.out\""
+}
+
+_te_worker_down() {
+  local s=$1
+  eval "exec $((20 + 2 * s))>&- $((21 + 2 * s))<&-"
+  pkill -TERM -P "${_te_wpids[$s]}" 2>/dev/null
+  kill "${_te_wpids[$s]}" 2>/dev/null
+  wait "${_te_wpids[$s]}" 2>/dev/null
+}
+
+# Sends the input to this test case's worker; its reply goes to output. A worker that stops or takes longer than -t
+# is started again for the next test case.
+# shortcut: this test case's later runs couldn't run then; restart here if -n runs need them.
+# shortcut: an input larger than a pipe holds (16 KB or more) waits on the worker without -t.
+_te_worker_ask() {
+  local s=$_te_slot w="$_te_tmp/$_te_i.w$_te_slot" started=$SECONDS
+  local to=$((20 + 2 * _te_slot)) from=$((21 + 2 * _te_slot))
+  if [ -f "$w.broken" ]; then _te_error "the worker stopped on an earlier run"; return; fi
+  trap '' PIPE # a worker that stopped is an error here, not the end of the test case
+  if printf '%s\0' "$_te_input" 1>&"$to" 2>/dev/null && IFS= read -r -d '' -t "$_te_timeout" -u "$from" output; then
+    trap - PIPE
+    return
+  fi
+  trap - PIPE
+  : >"$w.broken"
+  # By the time, as read fails the same way for both, and Git Bash shows a stopped worker as running for a while.
+  if [ $((SECONDS - started)) -ge "$_te_timeout" ]; then
+    local why="took longer than ${_te_timeout}s"
+    [ -z "$output" ] || why="didn't end its reply with a NUL byte within ${_te_timeout}s"
+    _te_error "the worker $why, so tinyeval stopped it (-t sets the limit)"
+  else
+    _te_error "the worker stopped: $(tail -n 3 "${_te_werrs[$s]}" | tr '\n' ' ')"
+  fi
+}
+
+# Runs ask with the input, its reply going to $1/out. Writes $1/timed-out when -t stops it.
+# shortcut: a timeout stops ask and its direct children; deeper ones run on, but no longer hold up tinyeval.
+_te_call_ask() {
+  local dir=$1 pid watchdog code
+  # 3>&-: a child left running after a timeout would hold the time keyword's stderr open, and so the caller's.
+  ask "$_te_input" <<<"$_te_input" >"$dir/out" 2>"$dir/err" 3>&- &
+  pid=$!
+  (
+    # A second at a time, with no trap to stop a long sleep: a stop that came before the trap was set waited out -t.
+    s=0
+    while [ $s -lt "$_te_timeout" ]; do sleep 1; s=$((s + 1)); done
+    : >"$dir/timed-out"
+    # Git Bash: end the Windows process tree, which takes native programs like python.exe with it.
+    if [ -r "/proc/$pid/winpid" ]; then taskkill //F //T //PID "$(cat "/proc/$pid/winpid")"; fi
+    pkill -TERM -P "$pid" 2>/dev/null
+    kill -TERM "$pid" 2>/dev/null
+  ) >/dev/null 2>&1 3>&- &
+  watchdog=$!
+  wait "$pid" 2>/dev/null # no "Terminated" line when the watchdog stopped it
+  code=$?
+  kill "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return $code
+}
+
+# Runs one test case: ask, then every grading line, once per run. Prints its lines; results go to $1/results.jsonl.
+# A check line starts another eval on the same reply, keyed "TEST CASE / NAME".
+_te_case() {
+  _te_dir=$1
+  local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt cost h jcost TIMEFORMAT=%3R
+  local suite key file jinput joutput targets='' t jt name=$_te_name
+  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls otel jotel=''
+  # Where the app may write its AI calls: this test case's own file, or its worker slot's (_te_worker_up).
+  local calls_file="$_te_dir/calls"
+  [ ${#_te_worker[@]} -eq 0 ] || calls_file="$_te_tmp/$_te_i.w$_te_slot.calls"
+  export TINYEVAL_CALLS=$calls_file
+  for a in ${_te_asserts[@]+"${_te_asserts[@]}"}; do
+    if [[ $a == "#check "* ]]; then keys+=("$_te_name / ${a#\#check }") lines+=(0)
+    else lines[${#lines[@]} - 1]=$((lines[${#lines[@]} - 1] + 1)); fi
+  done
+  # Grading lines that all come after a check: the test case is only its checks.
+  [ "${lines[0]}" -gt 0 ] || [ ${#keys[@]} -eq 1 ] || first=1
+  _te_json suite "$_te_suite"
+  _te_json file "$_te_file"
+  for t in ${_te_targets[@]+"${_te_targets[@]}"}; do _te_json jt "$t"; targets="${targets:+$targets,}$jt"; done
+  [ -z "$targets" ] || targets=",\"targets\":[$targets]"
+  : >"$_te_dir/results.jsonl"
+  while [ $i -le "$_te_runs" ]; do
+    _te_failures='' _te_errors='' output=''
+    # shortcut: a worker reads OTEL_RESOURCE_ATTRIBUTES once, so only ask's spans are tagged; tag a worker's by slot and time if asked.
+    if [ -n "$_te_otel" ] && [ ${#_te_worker[@]} -eq 0 ]; then
+      otel="$_te_otel.${_te_dir##*/}.$i" && jotel=",\"otel\":\"$otel\""
+      export OTEL_RESOURCE_ATTRIBUTES="${_te_otel_attrs:+$_te_otel_attrs,}evalship.eval=$otel"
+    fi
+    # bash's time keyword, not a clock command: two per run (perl on macOS's bash 3.2) were most of tinyeval's own time.
+    { time {
+      [ ! -f "$_te_dir/timed-out" ] || rm "$_te_dir/timed-out"
+      : >"$calls_file"
+      if [ ${#_te_worker[@]} -gt 0 ]; then
+        _te_worker_ask
+      elif ! type ask >/dev/null 2>&1; then
+        _te_error "define ask or worker in $_te_file: ask gets the input as \$1 and on stdin, and prints the reply"
+      else
+        _te_call_ask "$_te_dir"
+        code=$?
+        # read, not $(<file), which starts a process; $() drops the trailing newlines, so this does too.
+        IFS= read -r -d '' output <"$_te_dir/out"
+        if [ -f "$_te_dir/timed-out" ]; then
+          _te_error "ask took longer than ${_te_timeout}s, so tinyeval stopped it (-t sets the limit)"
+        elif [ $code -ne 0 ]; then
+          _te_error "ask failed (exit $code): $(tail -n 3 "$_te_dir/err" | tr '\n' ' ')"
+        fi
+      fi
+      while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
+      # Lines at the reply's start for tinyeval, not graded: "#tinyeval couldnt_run REASON" when the AI call broke (a
+      # 429 the app caught), "#tinyeval cost_usd DOLLARS" for what the call cost.
+      cost=''
+      while [[ $output == "#tinyeval "* ]]; do
+        h=${output%%$'\n'*} h=${h#\#tinyeval }
+        if [[ $output == *$'\n'* ]]; then output=${output#*$'\n'}; else output=''; fi
+        case $h in
+          "couldnt_run "*) _te_error "${h#couldnt_run }" ;;
+          "cost_usd "*) cost=${h#cost_usd }
+            [[ $cost =~ ^[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$ ]] || { _te_fail "#tinyeval cost_usd is a number of dollars, not \"$cost\""; cost=''; } ;;
+          *) _te_fail "not a #tinyeval line: $h (couldnt_run REASON or cost_usd DOLLARS)" ;;
+        esac
+      done
+      _te_read_calls "$calls_file"
+      # The AI call's errors are every eval's; a grading line's are its own eval's.
+      asked=$_te_errors g=0
+      for a in ${_te_asserts[@]+"${_te_asserts[@]}"} "#check "; do
+        if [[ $a != "#check "* ]]; then
+          [ -n "$asked" ] || eval "$a"
+          continue
+        fi
+        if [ -z "$asked" ] && [ "${lines[g]}" -eq 0 ] && [ $g -ge $first ]; then
+          _te_fail "nothing grades this $([ $g -eq 0 ] && echo test case || echo check): add contains, matches, json, problems, expect or judge under it"
+        fi
+        fails[g]=$_te_failures errs[g]=$_te_errors
+        g=$((g + 1)) _te_failures=$asked _te_errors=$asked
+      done
+    } 2>&3; } 3>&2 2>"$_te_dir/took"
+    read -r ms <"$_te_dir/took"
+    ms=$((10#${ms/[.,]/})) total_ms=$((total_ms + ms))
+    _te_json jinput "$_te_input"
+    _te_json joutput "$output"
+    jcalls='' && [ -z "$_te_calls" ] || jcalls=",\"calls\":[$_te_calls]"
+    g=$first
+    while [ $g -lt ${#keys[@]} ]; do
+      passed=true failure='' couldnt=''
+      if [ -z "${fails[g]}" ]; then passes[g]=$((${passes[g]:-0} + 1)); else
+        _te_json failure "${fails[g]}"
+        passed=false failure=",\"failure\":$failure" shown[g]=${fails[g]} shown_output[g]=$output shown_calls[g]=$_te_call_lines
+        # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
+        if [ "${fails[g]}" = "${errs[g]}" ]; then
+          _te_json couldnt "${errs[g]}"
+          errors[g]=$((${errors[g]:-0} + 1)) couldnt=",\"metadata\":{\"couldnt_run\":$couldnt}"
+        fi
+      fi
+      _te_json key "${keys[g]}"
+      # The call's cost goes on one eval only, so a test case's checks don't count it again.
+      jcost='' && [ -z "$cost" ] || [ $g -ne $first ] || jcost=",\"cost_usd\":$cost"
+      # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
+      printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s%s%s}\n' \
+        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" "$jcalls" "$jotel" \
+        >>"$_te_dir/results.jsonl"
+      g=$((g + 1))
+    done
+    i=$((i + 1))
+  done
+
+  [ "$_te_runs" -gt 1 ] || printf -v took ' %d.%ds' $((ms / 1000)) $((ms % 1000 / 100))
+  [ $first -eq 0 ] || printf '  %s%s%s\n' "$name" "$_te_d" "$took$_te_0"
+  local mark count ran p e indent label reply last_reply='' verdict
+  g=$first
+  while [ $g -lt ${#keys[@]} ]; do
+    # Runs that couldn't run don't count toward the majority.
+    p=${passes[g]:-0} e=${errors[g]:-0} ran=$((_te_runs - ${errors[g]:-0})) mark="${_te_g}✓" count=''
+    [ "$_te_runs" -eq 1 ] || count=" $p/$ran"
+    [ $g -gt 0 ] || count="$count$took"
+    [ "$e" -eq 0 ] || count="$count, $e couldn't run"
+    if [ "$ran" -eq 0 ]; then mark="${_te_y}!" count=" couldn't run"
+    elif [ $((p * 2)) -lt "$ran" ]; then mark="${_te_r}✗"
+    elif [ "$p" -lt "$ran" ]; then mark="${_te_y}~"; fi
+    indent='  ' label=$name
+    [ $g -eq 0 ] || indent='    ' label=${keys[g]#"$name / "}
+    printf '%s%s%s %s%s%s\n' "$indent" "$mark" "$_te_0" "$label" "$_te_d" "$count$_te_0"
+    reply=''
+    if [ -n "${shown[g]}" ]; then
+      reply=$(printf '%s' "${shown_output[g]:-(empty)}" | tr '\n' ' ' | cut -c 1-200)
+      printf '%s\n' "${shown[g]}" | sed "s/^/$indent    /"
+      # A check that failed on the reply another one showed doesn't show it again.
+      if [ "$reply" != "$last_reply" ]; then
+        printf '%s    %sreply: %s%s\n' "$indent" "$_te_d" "$reply" "$_te_0"
+        [ -z "${shown_calls[g]}" ] || printf '%s    %scalls: %s%s\n' "$indent" "$_te_d" "$(_te_call_names "${shown_calls[g]}")" "$_te_0"
+      fi
+      last_reply=$reply
+    fi
+    verdict=pass
+    if [ "$ran" -eq 0 ]; then verdict=error; elif [ $((p * 2)) -lt "$ran" ]; then verdict=fail; fi
+    _te_name=${keys[g]} shown_failures=${shown[g]}
+    [ -z "$_te_junit" ] || _te_junit_case "$verdict" "$reply" >>"$_te_dir/junit.xml"
+    if [ -n "${GITHUB_STEP_SUMMARY-}" ] && [ $verdict != pass ]; then _te_summary_row "$verdict" "$reply" >>"$_te_dir/summary.md"; fi
+    g=$((g + 1))
+  done
+}
+
+# A <testcase> for this test case, with a <failure> or <error> unless $1 is pass. $2 is the reply shown.
+_te_junit_case() {
+  local suite name file why reply tag=failure
+  _te_xml suite "$_te_suite"
+  _te_xml name "$_te_name"
+  _te_xml file "$_te_file"
+  printf '    <testcase classname="%s" name="%s" file="%s" time="%d.%03d"' "$suite" "$name" "$file" \
+    $((total_ms / 1000)) $((total_ms % 1000))
+  if [ "$1" = pass ]; then echo '/>'; return; fi
+  [ "$1" = fail ] || tag=error
+  _te_xml why "${shown_failures%%$'\n'*}"
+  _te_xml reply "$shown_failures"$'\n'"reply: $2"
+  printf '>\n      <%s message="%s">%s</%s>\n    </testcase>\n' "$tag" "$why" "$reply" "$tag"
+}
+
+# A row of the GitHub job summary's table for a test case that failed ($1 fail) or couldn't run ($1 error).
+_te_summary_row() {
+  local why=${shown_failures//$'\n'/; }
+  why=${why:0:300}
+  printf '| %s | %s › %s ' "$([ "$1" = fail ] && echo ✗ || echo !)" "$(_te_cell "$_te_suite")" "$(_te_cell "$_te_name")"
+  printf '| %s | %s |\n' "$(_te_cell "$why")" "$(_te_cell "$2")"
+}
+# Text that can stand in a Markdown table cell.
+_te_cell() { local s=${1//|/'\|'} lt='&lt;'; s=${s//</"$lt"}; printf '%s' "${s//$'\n'/ }"; }
+
+# suite<TAB>key<TAB>true|false|error per eval line of a results file (or results.jsonl) on stdin.
+# A raw "couldnt_run": can only be the key: inside a JSON string its quotes are escaped.
+_te_statuses() {
+  local line='^\{"suite":("([^"\\]|\\.)*"),"key":("([^"\\]|\\.)*"),"passed":(true|false)'
+  sed -nE -e "s/$line.*\"couldnt_run\":.*/\\1$_te_tab\\3${_te_tab}error/p" -e t -e "s/$line.*/\\1$_te_tab\\3$_te_tab\\5/p"
+}
+
+# suite<TAB>key<TAB>pass|fail|error per eval, in first-run order: the majority of the runs that could run, as evalship
+# counts repeats. error when none could.
+_te_majority() {
+  awk -F '\t' '{ k = $1 FS $2; if (!(k in seen)) { seen[k] = 1; order[++m] = k }
+      if ($3 != "error") { n[k]++; if ($3 == "true") p[k]++ } }
+    END { for (i = 1; i <= m; i++) { k = order[i]; print k FS (!(k in n) ? "error" : p[k] * 2 >= n[k] ? "pass" : "fail") } }'
+}
+
+# --- run ------------------------------------------------------------------------
+
+: >"$_te_tmp/results.jsonl"
+_te_i=0
+for _te_f in "$@"; do
+  _te_i=$((_te_i + 1))
+  _te_suite=$(basename "$_te_f" .sh)
+  # A subshell per file, so one file's ask doesn't leak into the next. In the background, because bash runs
+  # the INT/TERM trap during wait but not while a foreground command runs.
+  (
+    _te_name='' _te_n=0 _te_header='' _te_names=$'\n'
+    _te_pids=()
+    _te_dirs=()
+    # bash 3.2 (macOS) brace-expands inside "$(echo '...')" once an apostrophe written '"'"' flips its quote
+    # count: JSON rows like {"a": 1, "b": 2} multiplied into billions of inputs and filled all memory.
+    set +B
+    trap '[ $? -ne 127 ] || _te_unknown "$BASH_COMMAND"' ERR
+    # shellcheck source=/dev/null
+    . "$_te_f"
+    trap - ERR
+    _te_run_case
+    while [ ${#_te_pids[@]} -gt 0 ]; do _te_collect; done
+    for _te_s in "${!_te_wpids[@]}"; do _te_worker_down "$_te_s"; done
+    if [ -n "$_te_junit" ] && [ -f "$_te_tmp/$_te_i.junit" ]; then
+      _te_xml _te_sx "$_te_suite"
+      # shellcheck disable=SC2154 # _te_xml sets it
+      printf '  <testsuite name="%s" tests="%s" failures="%s" errors="%s">\n' "$_te_sx" \
+        "$(grep -c '<testcase ' "$_te_tmp/$_te_i.junit")" "$(grep -c '<failure ' "$_te_tmp/$_te_i.junit")" \
+        "$(grep -c '<error ' "$_te_tmp/$_te_i.junit")"
+      _te_cat "$_te_tmp/$_te_i.junit"
+      echo '  </testsuite>'
+    fi >>"$_te_tmp/junit.xml"
+  ) </dev/null &
+  wait "$!"
+done
+
+_te_statuses <"$_te_tmp/results.jsonl" | _te_majority >"$_te_tmp/now"
+_te_total=$(wc -l <"$_te_tmp/now" | tr -d ' ')
+if [ "$_te_total" -eq 0 ]; then
+  if [ -n "$_te_only" ]; then echo "tinyeval: no test case name contains \"$_te_only\"" >&2; else echo "tinyeval: no test cases in $*" >&2; fi
+  exit 2
+fi
+
+if [ -f "$_te_results" ]; then
+  _te_statuses <"$_te_results" | _te_majority >"$_te_tmp/was"
+  awk -F '\t' -v g="$_te_g" -v r="$_te_r" -v z="$_te_0" '
+    function show(s) { s = substr(s, 2, length(s) - 2); gsub(/\\"/, "\"", s); return s }
+    NR == FNR { was[$1 FS $2] = $3; next }
+    ($1 FS $2) in was && was[$1 FS $2] != $3 && was[$1 FS $2] != "error" && $3 != "error" {
+      if (!shown++) print "\nSince the last run"
+      print "  " ($3 == "pass" ? g "✓" z : r "✗" z) " " show($1) " › " show($2) ($3 == "pass" ? " passes now" : " fails now")
+    }' "$_te_tmp/was" "$_te_tmp/now"
+fi
+{ echo '{"evals": ['; sed '$!s/$/,/' "$_te_tmp/results.jsonl"; echo ']}'; } >"$_te_results"
+
+_te_failed=$(grep -c "${_te_tab}fail\$" "$_te_tmp/now")
+_te_broke=$(grep -c "${_te_tab}error\$" "$_te_tmp/now")
+if [ "$_te_failed" -gt 0 ]; then
+  _te_said="$_te_failed of $_te_total evals failed" _te_color=$_te_r
+  [ "$_te_broke" -eq 0 ] || _te_said="$_te_said, $_te_broke couldn't run"
+elif [ "$_te_broke" -gt 0 ]; then _te_said="$_te_broke of $_te_total evals couldn't run" _te_color=$_te_y
+else _te_said="All $_te_total evals passed" _te_color=$_te_g; fi
+printf '\n%s%s%s %s(%s)%s\n' "$_te_color" "$_te_said" "$_te_0" "$_te_d" "$_te_results" "$_te_0"
+
+if [ -n "$_te_junit" ]; then
+  { echo '<?xml version="1.0" encoding="UTF-8"?>'
+    printf '<testsuites tests="%s" failures="%s" errors="%s">\n' "$_te_total" "$_te_failed" "$_te_broke"
+    cat "$_te_tmp/junit.xml"
+    echo '</testsuites>'; } >"$_te_junit"
+fi
+# What the update notices below say to run.
+if [ -n "$_te_pkg" ]; then _te_up=$_te_pkg _te_commit=''
+else case $0 in ./*) _te_up="$0 update" ;; *) _te_up='tinyeval update' ;; esac; _te_commit=' and commit it'; fi
+# GitHub Actions shows this on the run's page.
+if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
+  { echo "### tinyeval: $_te_said"
+    if [ -s "$_te_tmp/summary.md" ]; then printf '\n| | Test case | Why | Reply |\n|---|---|---|---|\n'; cat "$_te_tmp/summary.md"; fi
+    wait "$_te_check_pid" 2>/dev/null # at most curl's 5 seconds, and the run has usually outlasted it
+    if _te_latest=$(cat "$_te_tmp/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
+      printf '\ntinyeval %s is out. Run %s%s.\n' "$_te_latest" "$_te_up" "$_te_commit"
+    fi
+  } >>"$GITHUB_STEP_SUMMARY"
+fi
+if [ -n "${_te_check-}" ] && _te_latest=$(cat "$_te_cache/latest" 2>/dev/null) && _te_newer "$_te_latest" "$_te_version"; then
+  printf '%stinyeval %s is out. Run %s%s\n' "$_te_d" "$_te_latest" "$_te_up" "$_te_0"
+fi
+[ $((_te_failed + _te_broke)) -eq 0 ] || exit 1
