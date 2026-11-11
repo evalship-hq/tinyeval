@@ -3,7 +3,7 @@
 
 // Runs the bundled bash tinyeval. It loads nothing else: worker.php's redirect would hide tinyeval's output.
 $runner = str_replace('\\', '/', dirname(__DIR__)) . '/tinyeval'; // a path Git for Windows' bash reads too
-putenv('TINYEVAL_PACKAGE_UPDATE=composer update evalship/tinyeval');
+putenv('TINYEVAL_PACKAGE_UPDATE=composer require --dev evalship/tinyeval');
 
 $windows = PHP_OS_FAMILY === 'Windows';
 $path = explode(PATH_SEPARATOR, getenv('PATH') ?: '');

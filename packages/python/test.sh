@@ -41,4 +41,8 @@ set +e
 status=$?
 set -e
 [ "$status" = 2 ] && grep -q "pip install -U tinyeval-cli" update.err || { echo "tinyeval update exited $status: $(cat update.err)" >&2; exit 1; }
+touch uv.lock
+said=$("$bin/tinyeval" update 2>&1 || true)
+rm uv.lock
+[[ $said == *"uv lock --upgrade-package tinyeval-cli"* ]] || { echo "tinyeval update in a uv project said: $said" >&2; exit 1; }
 E2E_WORKER="$bin/python evals/worker.py" "$bin/tinyeval"

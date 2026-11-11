@@ -71,7 +71,7 @@ bash 3.2 or later: macOS and Linux have it, and on Windows it comes with [Git fo
 pip install -U tinyeval-cli
 ```
 
-With uv: `uv lock --upgrade-package tinyeval`. tinyeval is a normal dependency in your lock file, so Dependabot and Renovate open pull requests for new versions.
+With uv: `uv lock --upgrade-package tinyeval-cli`. tinyeval is a normal dependency in your lock file, so Dependabot and Renovate open pull requests for new versions.
 
 ## Links
 

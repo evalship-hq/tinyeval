@@ -69,8 +69,10 @@ tinyeval is a bash script. It runs on bash 3.2 or later: macOS and Linux have it
 ## Updating
 
 ```sh
-composer update evalship/tinyeval
+composer require --dev evalship/tinyeval
 ```
+
+With no version, Composer moves to the newest release. `composer update` stays inside your `^0.x` range, which never takes a new 0.x minor.
 
 Dependabot and Renovate see new versions in your `composer.lock`. A repo that commits its own `./tinyeval` file keeps running that file.
 

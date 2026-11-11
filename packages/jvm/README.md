@@ -89,7 +89,7 @@ Gradle exits 1 for any exit code tinyeval gives other than 0.
 sbt 2 runs it in its own JVM. On sbt 1, set `run / fork := true` first.
 
 ```sh
-sbt stage "runMain com.evalship.tinyeval.Main -n 3"
+sbt "stage; runMain com.evalship.tinyeval.Main -n 3"
 ```
 
 Anywhere else: `java -jar tinyeval-0.11.0.jar`.
@@ -100,7 +100,7 @@ tinyeval is a bash script inside the jar. It needs bash 3.2 or later: macOS and 
 
 ## Updating
 
-Change the version in your build file, or let a bot do it: Dependabot and Renovate read `pom.xml` and Gradle builds, and Renovate and Scala Steward read `build.sbt`. With Maven:
+Change the version in your build file, or let a bot do it: Dependabot and Renovate read `pom.xml`, Gradle builds and `build.sbt`, and so does Scala Steward. With Maven:
 
 ```sh
 mvn versions:use-latest-releases -Dincludes=com.evalship:tinyeval

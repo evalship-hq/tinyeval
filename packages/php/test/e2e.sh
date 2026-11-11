@@ -42,5 +42,5 @@ PHP
 E2E_WORKER="php evals/worker.php" vendor/bin/tinyeval
 [ "$(vendor/bin/tinyeval -v)" = "tinyeval $version" ] || { echo "tinyeval -v printed $(vendor/bin/tinyeval -v)" >&2; exit 1; }
 code=0 && said=$(vendor/bin/tinyeval update 2>&1) || code=$?
-[ "$code" = 2 ] && [[ $said == *"composer update evalship/tinyeval"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
+[ "$code" = 2 ] && [[ $said == *"composer require --dev evalship/tinyeval"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
 echo "end to end: ok"

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 let runner = fileURLToPath(new URL("../tinyeval", import.meta.url));
 const args = process.argv.slice(2);
-const env = { ...process.env, TINYEVAL_PACKAGE_UPDATE: "npm update tinyeval-cli" };
+const env = { ...process.env, TINYEVAL_PACKAGE_UPDATE: "npm install --save-dev tinyeval-cli@latest" };
 const usable = (file) => {
   try {
     accessSync(file, constants.X_OK);

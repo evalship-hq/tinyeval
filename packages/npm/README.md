@@ -51,10 +51,10 @@ tinyeval needs bash 3.2 or later. macOS and Linux come with it. On Windows, inst
 ## Updating
 
 ```sh
-npm update tinyeval-cli
+npm install --save-dev tinyeval-cli@latest
 ```
 
-Or `pnpm update tinyeval-cli`, `yarn up tinyeval-cli`, `bun update tinyeval-cli`. Since the version sits in your lock file, Dependabot and Renovate open the update for you.
+Or `pnpm add -D tinyeval-cli@latest`, `yarn up tinyeval-cli`, `bun add -d tinyeval-cli@latest`. A plain `npm update` stays inside your `^0.x` range, which never takes a new 0.x minor. Since the version sits in your lock file, Dependabot and Renovate open the update for you.
 
 ## Links
 
