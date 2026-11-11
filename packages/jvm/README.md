@@ -10,12 +10,12 @@ Maven, as a test dependency:
 <dependency>
   <groupId>com.evalship</groupId>
   <artifactId>tinyeval</artifactId>
-  <version>0.11.0</version>
+  <version>0.11.1</version>
   <scope>test</scope>
 </dependency>
 ```
 
-Gradle: `implementation("com.evalship:tinyeval:0.11.0")`. sbt: `libraryDependencies += "com.evalship" % "tinyeval" % "0.11.0"`. Both put it next to your app, so the start script that `installDist` or `stage` writes can run the worker. The jar has no dependencies and runs on Java 8 or later.
+Gradle: `implementation("com.evalship:tinyeval:0.11.1")`. sbt: `libraryDependencies += "com.evalship" % "tinyeval" % "0.11.1"`. Both put it next to your app, so the start script that `installDist` or `stage` writes can run the worker. The jar has no dependencies and runs on Java 8 or later.
 
 ## Example
 
@@ -92,7 +92,7 @@ sbt 2 runs it in its own JVM. On sbt 1, set `run / fork := true` first.
 sbt "stage; runMain com.evalship.tinyeval.Main -n 3"
 ```
 
-Anywhere else: `java -jar tinyeval-0.11.0.jar`.
+Anywhere else: `java -jar tinyeval-0.11.1.jar`.
 
 ## Needs bash
 

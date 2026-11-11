@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Set up your app's language here, as for its tests.
-      - uses: evalship-hq/tinyeval-action@v0.11.0
+      - uses: evalship-hq/tinyeval-action@v0.11.1
         with:
           args: -n 3
         env:
