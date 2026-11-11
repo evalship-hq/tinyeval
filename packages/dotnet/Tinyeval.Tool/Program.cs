@@ -16,8 +16,8 @@ foreach (var arg in args) start.ArgumentList.Add(arg);
 // A global tool runs from a .store folder. A local one, from .config/dotnet-tools.json, runs from the NuGet cache.
 // shortcut: a --tool-path install is told -g too; name --tool-path if someone uses one.
 start.Environment["TINYEVAL_PACKAGE_UPDATE"] = AppContext.BaseDirectory.Contains(".store")
-    ? "dotnet tool update -g Tinyeval.Tool"
-    : "dotnet tool update Tinyeval.Tool";
+    ? "dotnet tool update -g Tinyeval.Tool, and dotnet add <worker project> package Tinyeval"
+    : "dotnet tool update Tinyeval.Tool, and dotnet add <worker project> package Tinyeval";
 
 Console.CancelKeyPress += (_, e) => e.Cancel = true; // Ctrl-C reaches bash too, which stops the run and says so
 using var run = Process.Start(start)!;

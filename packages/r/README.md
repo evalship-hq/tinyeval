@@ -67,7 +67,7 @@ R reads `.Rprofile` before your worker file, so what it prints lands in the firs
 install.packages("tinyeval", repos = "https://evalship-hq.r-universe.dev")
 ```
 
-`tinyeval::run("update")` prints that line, and the run's summary says when a new release is out. Dependabot and Renovate don't read renv.lock yet.
+In an renv project, run `renv::snapshot()` after, so renv.lock moves too. `tinyeval::run("update")` prints the line that fits, and the run's summary says when a new release is out. Dependabot and Renovate don't read renv.lock yet.
 
 ## Links
 

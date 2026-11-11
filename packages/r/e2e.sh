@@ -30,5 +30,9 @@ tinyeval() { Rscript -e 'quit(status = tinyeval::run(commandArgs(TRUE)))' "$@"; 
 [ "$(tinyeval -v)" = "tinyeval $version" ] || { echo "tinyeval -v printed $(tinyeval -v)" >&2; exit 1; }
 code=0 && said=$(tinyeval update 2>&1) || code=$?
 [ "$code" = 2 ] && [[ $said == *'install.packages("tinyeval"'* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
+touch renv.lock
+said=$(tinyeval update 2>&1 || true)
+rm renv.lock
+[[ $said == *'"https://evalship-hq.r-universe.dev"); renv::snapshot()'* ]] || { echo "tinyeval update in an renv project said: $said" >&2; exit 1; }
 E2E_WORKER="Rscript --vanilla evals/worker.R" tinyeval
 echo "e2e: ok"

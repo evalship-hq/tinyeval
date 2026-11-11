@@ -46,5 +46,5 @@ E2E_WORKER="$PWD/target/debug/worker" tinyeval
 
 [ "$(tinyeval -v)" = "tinyeval $version" ] || { echo "tinyeval -v printed $(tinyeval -v)" >&2; exit 1; }
 status=0 && said=$(tinyeval update 2>&1) || status=$?
-[ "$status" = 2 ] && [[ $said == *"cargo install tinyeval"* ]] || { echo "tinyeval update exited $status: $said" >&2; exit 1; }
+[ "$status" = 2 ] && [[ $said == *"cargo install tinyeval, and raise tinyeval in Cargo.toml"* ]] || { echo "tinyeval update exited $status: $said" >&2; exit 1; }
 echo "e2e: ok"

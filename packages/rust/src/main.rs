@@ -15,7 +15,8 @@ fn main() {
     let mut bash = Command::new(bash());
     bash.arg(&runner)
         .args(env::args_os().skip(1))
-        .env("TINYEVAL_PACKAGE_UPDATE", "cargo install tinyeval");
+        // cargo update stays inside the helper's 0.x requirement, so the helper needs a new one.
+        .env("TINYEVAL_PACKAGE_UPDATE", "cargo install tinyeval, and raise tinyeval in Cargo.toml");
     run(bash)
 }
 

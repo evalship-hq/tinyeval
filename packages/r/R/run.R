@@ -6,7 +6,9 @@ run <- function(...) {
   }
   env <- c(
     # tinyeval update prints this, and so does the notice of a new release.
-    TINYEVAL_PACKAGE_UPDATE = "Rscript -e 'install.packages(\"tinyeval\", repos = \"https://evalship-hq.r-universe.dev\")'",
+    # In an renv project, renv.lock has to record the new version too.
+    TINYEVAL_PACKAGE_UPDATE = paste0("Rscript -e 'install.packages(\"tinyeval\", repos = \"https://evalship-hq.r-universe.dev\")",
+      if (file.exists("renv.lock")) "; renv::snapshot()", "'"),
     # .Rprofile runs before a worker's library(tinyeval), and renv's out-of-sync note there would land in a reply.
     RENV_CONFIG_SYNCHRONIZED_CHECK = "FALSE"
   )

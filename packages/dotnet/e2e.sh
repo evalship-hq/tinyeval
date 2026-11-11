@@ -63,5 +63,5 @@ E2E_WORKER="dotnet evals/Worker/out/Worker.dll" dotnet tinyeval
 
 [ "$(dotnet tinyeval -v)" = "tinyeval $version" ] || { echo "tinyeval -v printed $(dotnet tinyeval -v)" >&2; exit 1; }
 code=0; said=$(dotnet tinyeval update 2>&1) || code=$?
-[ "$code" = 2 ] && [[ $said == *"dotnet tool update Tinyeval.Tool"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
+[ "$code" = 2 ] && [[ $said == *"dotnet tool update Tinyeval.Tool, and dotnet add <worker project> package Tinyeval"* ]] || { echo "tinyeval update exited $code: $said" >&2; exit 1; }
 echo "end to end: ok"

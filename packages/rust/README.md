@@ -62,7 +62,7 @@ The command needs bash 3.2 or later: macOS, Linux, or Git for Windows.
 
 ## Updating
 
-`cargo install tinyeval` installs a newer command when there is one. The helper is in your `Cargo.lock`, so Dependabot and Renovate bump it. tinyeval names a new release under its summary.
+`cargo install tinyeval` installs a newer command when there is one. The helper needs a new version in `Cargo.toml`, since `cargo update` stays inside a 0.x minor: `cargo add --dev tinyeval@0.12.0`, say. Dependabot and Renovate raise it for you. tinyeval names a new release under its summary.
 
 ## Links
 
