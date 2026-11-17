@@ -166,6 +166,18 @@ check units
   not_contains "cups"
 ```
 
+**every_run** makes an eval pass only when every run passes. With `-n 3` an eval passes when most runs do, so a refund the bot promises 1 time in 3 still passes. Put it under the rules that may never break:
+
+```bash
+test_case "refund after 40 days" "Can I get a refund after 40 days?"
+  judge "Explains the 30-day limit"
+check no promise
+  every_run
+  not_contains "refund approved"
+```
+
+Above a test case's first `check`, it holds for each of its checks. Runs that couldn't run don't count.
+
 For a chat feature, give the conversation so far and grade the last reply:
 
 ```bash
@@ -213,14 +225,29 @@ When the API answers with a rate limit or a server error, the judge waits and tr
 
 | Flag | Does |
 |---|---|
-| `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed; runs that couldn't run don't count |
+| `-n 3` | runs each test case 3 times; it passes when at least half pass and shows `~` when some failed; runs that couldn't run don't count. An [`every_run`](#writing-evals) eval needs every run |
 | `-j 8` | runs 8 test cases at once (default: 4); output stays in file order. `-j 1` is for an AI call that can't run alongside itself |
 | `-t 60` | stops an AI call after 60 seconds (default: 300) |
 | `-k refund` | runs only the test cases whose name contains "refund" |
 | `-o file` | writes the results there instead of `eval-results.json` |
 | `-x file` | also writes them as JUnit XML, which GitLab, Jenkins and CircleCI show with their tests |
+| `-e` | lists the [evals an empty reply passes](#evals-an-empty-reply-passes), without making an AI call |
 
 The same input can get a different reply each time, so `-n 3` is worth its cost.
+
+## Evals an empty reply passes
+
+```
+$ ./tinyeval -e
+2 of 12 evals pass on an empty reply
+  support › stays polite
+  support › refund after 40 days / no promise
+Give each a line an empty reply fails: contains, matches, equals, json or judge.
+```
+
+An eval that passes when the AI says nothing passes a broken product too. `-e` finds them: it grades an empty reply in place of every AI call, so `ask` and `worker` don't run. `judge` lines still call the judge, since a judge that passes an empty reply is the same flaw.
+
+An eval with only `not_contains` lines is always listed. It exits 1 when an eval passes or couldn't run, and leaves `eval-results.json` as it was.
 
 ## Couldn't run
 
@@ -307,7 +334,7 @@ Without a committed `./tinyeval`, [tinyeval-action](https://github.com/evalship-
 ]}
 ```
 
-A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`, one whose reply said its cost has `"cost_usd"`, and one whose app recorded its [AI calls](#ai-calls) has `"calls"`.
+A run that couldn't run also has `"metadata":{"couldnt_run":"why"}`, an [`every_run`](#writing-evals) eval's has `"metadata":{"every_run":true}`, one whose reply said its cost has `"cost_usd"`, and one whose app recorded its [AI calls](#ai-calls) has `"calls"`.
 
 ## Share results
 
