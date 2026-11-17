@@ -3,7 +3,7 @@
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
 _te_version=0.11.1
-_te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [eval files...]
+_te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [-e] [eval files...]
        tinyeval update
        tinyeval share [file]
 
@@ -17,6 +17,8 @@ results to eval-results.json. Exits 1 when an eval fails or couldn't run
   -k text     run only the test cases whose name contains text
   -o file     where to write the results (default: eval-results.json)
   -x file     also write them as JUnit XML, which most CI systems show
+  -e          grade an empty reply instead of making the AI call, and list the
+              evals that still pass; it writes no results
   -v          print the version
   update      replace this file with the latest release
   share       put the results (default: eval-results.json) behind a private
@@ -44,6 +46,7 @@ by the lines that grade its reply:
   target FILE#NAME                the code the test case covers, kept in the results file
   check NAME                      the lines after it grade the same reply as another
                                   eval, named \"TEST CASE / NAME\"
+  every_run                       with -n, this eval passes only when every run passes
   judge CRITERION                 a model says the reply meets CRITERION; it needs
                                   OPENROUTER_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY
 
@@ -102,9 +105,9 @@ if [ "${1-}" = share ]; then
   exit 0
 fi
 
-_te_runs=1 _te_jobs=4 _te_timeout=300 _te_only='' _te_junit=''
+_te_runs=1 _te_jobs=4 _te_timeout=300 _te_only='' _te_junit='' _te_empty=''
 _te_results=eval-results.json
-while getopts n:j:t:k:o:x:vh _te_opt; do
+while getopts n:j:t:k:o:x:evh _te_opt; do
   case $_te_opt in
     n) _te_runs=$OPTARG ;;
     j) _te_jobs=$OPTARG ;;
@@ -112,6 +115,7 @@ while getopts n:j:t:k:o:x:vh _te_opt; do
     k) _te_only=$OPTARG ;;
     o) _te_results=$OPTARG ;;
     x) _te_junit=$OPTARG ;;
+    e) _te_empty=1 ;;
     v) echo "tinyeval $_te_version"; exit 0 ;;
     h) echo "$_te_usage"; exit 0 ;;
     *) echo "$_te_usage" >&2; exit 2 ;;
@@ -200,6 +204,12 @@ check() {
 target() {
   [ -n "$_te_name" ] || { echo "tinyeval: target comes before any test_case in ${BASH_SOURCE[1]}" >&2; return 1; }
   _te_targets+=("$@")
+}
+# every_run: with -n, the eval it's in passes only when every run that could run passes, not most of them: for a rule
+# that may never break. Above a test case's first check, it holds for each of its checks too.
+every_run() {
+  [ -n "$_te_name" ] || { echo "tinyeval: every_run comes before any test_case in ${BASH_SOURCE[1]}" >&2; return 1; }
+  _te_asserts+=("#every_run")
 }
 judge() { _te_add _te_judge "$@"; }               # a model says the reply meets CRITERION
 
@@ -409,7 +419,7 @@ _te_run_case() {
     local dir="$_te_tmp/$_te_i.$_te_n"
     # The slot the test case -j back had, as the oldest one is collected first: its worker is free.
     _te_slot=$(((_te_n - 1) % _te_jobs))
-    [ ${#_te_worker[@]} -eq 0 ] || _te_worker_up "$_te_slot"
+    [ ${#_te_worker[@]} -eq 0 ] || [ -n "$_te_empty" ] || _te_worker_up "$_te_slot"
     { mkdir "$dir" && _te_case "$dir" >"$dir/printed"; } &
     _te_pids+=("$!")
     _te_dirs+=("$dir")
@@ -424,8 +434,11 @@ _te_cat() { local l; while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l";
 # Waits for the oldest running test case, then prints it and keeps its results.
 _te_collect() {
   wait "${_te_pids[0]}"
-  [ -n "$_te_header" ] || { echo "$_te_suite"; _te_header=1; }
-  _te_cat "${_te_dirs[0]}/printed"
+  # -e prints its own list at the end: there a failing eval is the good news.
+  if [ -z "$_te_empty" ]; then
+    [ -n "$_te_header" ] || { echo "$_te_suite"; _te_header=1; }
+    _te_cat "${_te_dirs[0]}/printed"
+  fi
   _te_cat "${_te_dirs[0]}/results.jsonl" >>"$_te_tmp/results.jsonl"
   [ ! -f "${_te_dirs[0]}/junit.xml" ] || _te_cat "${_te_dirs[0]}/junit.xml" >>"$_te_tmp/$_te_i.junit"
   [ ! -f "${_te_dirs[0]}/summary.md" ] || _te_cat "${_te_dirs[0]}/summary.md" >>"$_te_tmp/summary.md"
@@ -519,13 +532,14 @@ _te_case() {
   _te_dir=$1
   local i=1 g first=0 ms total_ms=0 took='' code a asked passed failure couldnt cost h jcost TIMEFORMAT=%3R
   local suite key file jinput joutput targets='' t jt name=$_te_name
-  local keys=("$_te_name") lines=(0) passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls otel jotel=''
+  local keys=("$_te_name") lines=(0) every=() meta need passes=() errors=() fails=() errs=() shown=() shown_output=() shown_calls=() jcalls otel jotel=''
   # Where the app may write its AI calls: this test case's own file, or its worker slot's (_te_worker_up).
   local calls_file="$_te_dir/calls"
   [ ${#_te_worker[@]} -eq 0 ] || calls_file="$_te_tmp/$_te_i.w$_te_slot.calls"
   export TINYEVAL_CALLS=$calls_file
   for a in ${_te_asserts[@]+"${_te_asserts[@]}"}; do
-    if [[ $a == "#check "* ]]; then keys+=("$_te_name / ${a#\#check }") lines+=(0)
+    if [[ $a == "#check "* ]]; then keys+=("$_te_name / ${a#\#check }") lines+=(0) every[${#keys[@]} - 1]=${every[0]-}
+    elif [ "$a" = "#every_run" ]; then every[${#keys[@]} - 1]=1
     else lines[${#lines[@]} - 1]=$((lines[${#lines[@]} - 1] + 1)); fi
   done
   # Grading lines that all come after a check: the test case is only its checks.
@@ -546,7 +560,9 @@ _te_case() {
     { time {
       [ ! -f "$_te_dir/timed-out" ] || rm "$_te_dir/timed-out"
       : >"$calls_file"
-      if [ ${#_te_worker[@]} -gt 0 ]; then
+      if [ -n "$_te_empty" ]; then
+        : # -e: no AI call, the grading lines get an empty reply
+      elif [ ${#_te_worker[@]} -gt 0 ]; then
         _te_worker_ask
       elif ! type ask >/dev/null 2>&1; then
         _te_error "define ask or worker in $_te_file: ask gets the input as \$1 and on stdin, and prints the reply"
@@ -580,7 +596,7 @@ _te_case() {
       asked=$_te_errors g=0
       for a in ${_te_asserts[@]+"${_te_asserts[@]}"} "#check "; do
         if [[ $a != "#check "* ]]; then
-          [ -n "$asked" ] || eval "$a"
+          [ -n "$asked" ] || eval "$a" # "#every_run" is a comment to eval
           continue
         fi
         if [ -z "$asked" ] && [ "${lines[g]}" -eq 0 ] && [ $g -ge $first ]; then
@@ -597,22 +613,25 @@ _te_case() {
     jcalls='' && [ -z "$_te_calls" ] || jcalls=",\"calls\":[$_te_calls]"
     g=$first
     while [ $g -lt ${#keys[@]} ]; do
-      passed=true failure='' couldnt=''
+      passed=true failure='' meta=''
       if [ -z "${fails[g]}" ]; then passes[g]=$((${passes[g]:-0} + 1)); else
         _te_json failure "${fails[g]}"
         passed=false failure=",\"failure\":$failure" shown[g]=${fails[g]} shown_output[g]=$output shown_calls[g]=$_te_call_lines
-        # evalship reads couldnt_run too, and leaves such a run out of a test case's repeats.
         if [ "${fails[g]}" = "${errs[g]}" ]; then
           _te_json couldnt "${errs[g]}"
-          errors[g]=$((${errors[g]:-0} + 1)) couldnt=",\"metadata\":{\"couldnt_run\":$couldnt}"
+          errors[g]=$((${errors[g]:-0} + 1)) meta="\"couldnt_run\":$couldnt"
         fi
       fi
+      # evalship reads both too: it leaves a couldnt_run run out of a test case's repeats, and asks every run of an
+      # every_run eval to pass. every_run comes first, where _te_statuses looks for it.
+      [ -z "${every[g]-}" ] || meta="\"every_run\":true${meta:+,$meta}"
+      [ -z "$meta" ] || meta=",\"metadata\":{$meta}"
       _te_json key "${keys[g]}"
       # The call's cost goes on one eval only, so a test case's checks don't count it again.
       jcost='' && [ -z "$cost" ] || [ $g -ne $first ] || jcost=",\"cost_usd\":$cost"
       # One eval per line with suite, key and passed first: the summary and the next run read them back with sed.
       printf '{"suite":%s,"key":%s,"passed":%s,"file":%s%s,"duration_ms":%s%s,"input":%s,"output":%s%s%s%s%s}\n' \
-        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$couldnt" "$jcalls" "$jotel" \
+        "$suite" "$key" "$passed" "$file" "$targets" "$ms" "$jcost" "$jinput" "$joutput" "$failure" "$meta" "$jcalls" "$jotel" \
         >>"$_te_dir/results.jsonl"
       g=$((g + 1))
     done
@@ -624,13 +643,16 @@ _te_case() {
   local mark count ran p e indent label reply last_reply='' verdict
   g=$first
   while [ $g -lt ${#keys[@]} ]; do
-    # Runs that couldn't run don't count toward the majority.
+    # Runs that couldn't run don't count toward the majority, which an every_run eval needs all of.
     p=${passes[g]:-0} e=${errors[g]:-0} ran=$((_te_runs - ${errors[g]:-0})) mark="${_te_g}✓" count=''
+    need=$(((ran + 1) / 2))
+    [ -z "${every[g]-}" ] || need=$ran
     [ "$_te_runs" -eq 1 ] || count=" $p/$ran"
     [ $g -gt 0 ] || count="$count$took"
     [ "$e" -eq 0 ] || count="$count, $e couldn't run"
+    [ -z "${every[g]-}" ] || [ "$p" -eq "$ran" ] || count="$count, every run must pass"
     if [ "$ran" -eq 0 ]; then mark="${_te_y}!" count=" couldn't run"
-    elif [ $((p * 2)) -lt "$ran" ]; then mark="${_te_r}✗"
+    elif [ "$p" -lt "$need" ]; then mark="${_te_r}✗"
     elif [ "$p" -lt "$ran" ]; then mark="${_te_y}~"; fi
     indent='  ' label=$name
     [ $g -eq 0 ] || indent='    ' label=${keys[g]#"$name / "}
@@ -647,7 +669,7 @@ _te_case() {
       last_reply=$reply
     fi
     verdict=pass
-    if [ "$ran" -eq 0 ]; then verdict=error; elif [ $((p * 2)) -lt "$ran" ]; then verdict=fail; fi
+    if [ "$ran" -eq 0 ]; then verdict=error; elif [ "$p" -lt "$need" ]; then verdict=fail; fi
     _te_name=${keys[g]} shown_failures=${shown[g]}
     [ -z "$_te_junit" ] || _te_junit_case "$verdict" "$reply" >>"$_te_dir/junit.xml"
     if [ -n "${GITHUB_STEP_SUMMARY-}" ] && [ $verdict != pass ]; then _te_summary_row "$verdict" "$reply" >>"$_te_dir/summary.md"; fi
@@ -680,19 +702,24 @@ _te_summary_row() {
 # Text that can stand in a Markdown table cell.
 _te_cell() { local s=${1//|/'\|'} lt='&lt;'; s=${s//</"$lt"}; printf '%s' "${s//$'\n'/ }"; }
 
-# suite<TAB>key<TAB>true|false|error per eval line of a results file (or results.jsonl) on stdin.
+# suite<TAB>key<TAB>true|false|error per eval line of a results file (or results.jsonl) on stdin, then <TAB>every for
+# an every_run eval's run that could run.
 # A raw "couldnt_run": can only be the key: inside a JSON string its quotes are escaped.
 _te_statuses() {
   local line='^\{"suite":("([^"\\]|\\.)*"),"key":("([^"\\]|\\.)*"),"passed":(true|false)'
-  sed -nE -e "s/$line.*\"couldnt_run\":.*/\\1$_te_tab\\3${_te_tab}error/p" -e t -e "s/$line.*/\\1$_te_tab\\3$_te_tab\\5/p"
+  sed -nE -e "s/$line.*\"couldnt_run\":.*/\\1$_te_tab\\3${_te_tab}error/p" -e t \
+    -e "s/$line.*\"metadata\":\\{\"every_run\":true.*/\\1$_te_tab\\3$_te_tab\\5${_te_tab}every/p" -e t \
+    -e "s/$line.*/\\1$_te_tab\\3$_te_tab\\5/p"
 }
 
-# suite<TAB>key<TAB>pass|fail|error per eval, in first-run order: the majority of the runs that could run, as evalship
-# counts repeats. error when none could.
+# suite<TAB>key<TAB>pass|fail|error per eval, in first-run order: the majority of the runs that could run, or all of
+# them for an every_run eval, as evalship counts repeats. error when none could.
 _te_majority() {
   awk -F '\t' '{ k = $1 FS $2; if (!(k in seen)) { seen[k] = 1; order[++m] = k }
+      if ($4 == "every") every[k] = 1
       if ($3 != "error") { n[k]++; if ($3 == "true") p[k]++ } }
-    END { for (i = 1; i <= m; i++) { k = order[i]; print k FS (!(k in n) ? "error" : p[k] * 2 >= n[k] ? "pass" : "fail") } }'
+    END { for (i = 1; i <= m; i++) { k = order[i]
+      print k FS (!(k in n) ? "error" : (every[k] ? p[k] == n[k] : p[k] * 2 >= n[k]) ? "pass" : "fail") } }'
 }
 
 # --- run ------------------------------------------------------------------------
@@ -736,6 +763,26 @@ _te_total=$(wc -l <"$_te_tmp/now" | tr -d ' ')
 if [ "$_te_total" -eq 0 ]; then
   if [ -n "$_te_only" ]; then echo "tinyeval: no test case name contains \"$_te_only\"" >&2; else echo "tinyeval: no test cases in $*" >&2; fi
   exit 2
+fi
+
+# -e: an eval that passes when the AI says nothing passes a broken product too. No AI call ran, so the results file
+# and Since the last run stay as they were.
+if [ -n "$_te_empty" ]; then
+  _te_failed=$(grep -c "${_te_tab}pass\$" "$_te_tmp/now")
+  _te_broke=$(grep -c "${_te_tab}error\$" "$_te_tmp/now")
+  if [ "$_te_failed" -gt 0 ]; then
+    printf '%s%s of %s evals pass on an empty reply%s\n' "$_te_r" "$_te_failed" "$_te_total" "$_te_0"
+    awk -F '\t' '
+      function show(s) { s = substr(s, 2, length(s) - 2); gsub(/\\"/, "\"", s); return s }
+      $3 == "pass" { print "  " show($1) " › " show($2) }' "$_te_tmp/now"
+    echo "Give each a line an empty reply fails: contains, matches, equals, json or judge."
+  else
+    printf '%sNo eval passes on an empty reply%s\n' "$_te_g" "$_te_0"
+  fi
+  [ "$_te_broke" -eq 0 ] ||
+    printf "%s%s of %s evals couldn't run, so -e says nothing about them%s\n" "$_te_y" "$_te_broke" "$_te_total" "$_te_0"
+  [ $((_te_failed + _te_broke)) -eq 0 ] || exit 1
+  exit 0
 fi
 
 if [ -f "$_te_results" ]; then

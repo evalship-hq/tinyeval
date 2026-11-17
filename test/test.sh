@@ -77,6 +77,29 @@ out=$(./tinyeval -n 3 -o "$tmp/broken.json" test/fixtures/broken.sh); code=$?
 ok "a run that couldn't run doesn't count toward -n" '[ $code -eq 0 ] && [[ $out == *"~ one run broke 1/2, 1 couldn'"'"'t run"* ]] && [[ $out == *"All 1 evals passed"* ]]'
 ok "flaky: one entry per run" '[ "$(jqr "[.evals[] | select(.passed)] | length" "$tmp/flaky.json")" -eq 2 ] && [ "$(jqr ".evals | length" "$tmp/flaky.json")" -eq 3 ]'
 
+rm -f "$COUNTER".*
+out=$(./tinyeval -n 3 -o "$tmp/every.json" test/fixtures/every.sh 2>&1); code=$?
+ok "every_run: 2 of 3 runs fail the eval, and pass one without it" '[ $code -eq 1 ] && [[ $out == *"~ most runs 2/3"* ]] && [[ $out == *"✗ every 2/3, every run must pass"* ]] && [[ $out == *"2 of 5 evals failed"* ]]'
+ok "every_run: above the checks it holds for each" '[[ $out == *"✗ one 2/3, every run must pass"* ]] && [[ $out == *"✓ two 3/3"* ]]'
+ok "every_run: a run that couldn't run is left out" '[[ $out == *"✓ one run broke 2/2, 1 couldn'"'"'t run"* ]]'
+ok "every_run: in the results, next to couldnt_run" '[ "$(jqr -c "[.evals[] | select(.metadata.every_run) | .key] | unique" "$tmp/every.json")" = "[\"above the checks / one\",\"above the checks / two\",\"most runs / every\",\"one run broke\"]" ] && jqr -e "[.evals[] | select(.key == \"one run broke\") | .metadata.couldnt_run] == [null, \"rate limited\", null]" "$tmp/every.json" >/dev/null'
+rm -f "$COUNTER".*
+out=$(./tinyeval -o "$tmp/every.json" test/fixtures/every.sh 2>&1); code=$?
+ok "every_run: the last run's results count it too" '[ $code -eq 0 ] && [[ $out == *"every › most runs / every passes now"* ]] && [[ $out == *"every › above the checks / one passes now"* ]] && [[ $out != *"two passes now"* ]]'
+rm -f "$COUNTER".*
+
+export ASKED="$tmp/asked"
+out=$(./tinyeval -e -o "$tmp/e.json" test/fixtures/empty_reply.sh 2>&1); code=$?
+ok "-e: lists the evals an empty reply passes" '[ $code -eq 1 ] && [[ $out == *"2 of 4 evals pass on an empty reply"*"  empty_reply › only forbids"*"  empty_reply › judged / tone"* ]] && [[ $out != *"needs the answer"* ]]'
+ok "-e: no AI call and no results file" '[ ! -e "$ASKED" ] && [ ! -e "$tmp/e.json" ]'
+cp "$tmp/basics.json" "$tmp/kept.json"
+out=$(./tinyeval -e -o "$tmp/kept.json" test/fixtures/failing.sh 2>&1); code=$?
+ok "-e: exits 0 when no eval passes, and keeps the last results" '[ $code -eq 0 ] && [ "$out" = "No eval passes on an empty reply" ] && cmp -s "$tmp/basics.json" "$tmp/kept.json"'
+out=$(./tinyeval -e test/fixtures/worker.sh 2>&1); code=$?
+ok "-e: a worker doesn't start" '[ $code -eq 0 ] && [ "$out" = "No eval passes on an empty reply" ]'
+out=$(TINYEVAL_JUDGE="exit 1" ./tinyeval -e test/fixtures/judge.sh 2>&1); code=$?
+ok "-e: a judge that couldn't run is no pass" '[ $code -eq 1 ] && [[ $out == *"1 of 1 evals couldn'"'"'t run, so -e says nothing about them"* ]]'
+
 out=$(./tinyeval -o "$tmp/typo.json" test/fixtures/typo.sh 2>/dev/null); code=$?
 ok "a misspelled line fails its test case" '[ $code -eq 1 ] && [[ $out == *"not a tinyeval line: contians"* ]]'
 ok "a test case with no grading lines fails" '[[ $out == *"nothing grades this test case"* ]] && [[ $out == *"3 of 4 evals failed"* ]]'
