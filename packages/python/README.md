@@ -78,3 +78,4 @@ With uv: `uv lock --upgrade-package tinyeval-cli`. tinyeval is a normal dependen
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every line an eval file can use, the judge included.
 - [python-llm-evals](https://github.com/evalship-hq/python-llm-evals): a support bot with its evals, run on every pull request.
+- Made by [evalship](https://evalship.com).

@@ -93,3 +93,4 @@ tinyeval sits in your `pubspec.lock`, so Dependabot and Renovate open pull reque
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every line an eval file can use, the judge included
 - [dart-llm-evals](https://github.com/evalship-hq/dart-llm-evals): a Dart support bot with its evals, run on every pull request
+- Made by [evalship](https://evalship.com).

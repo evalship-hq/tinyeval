@@ -56,3 +56,4 @@ brew upgrade tinyeval
 - https://tinyeval.com
 - [Writing evals](https://github.com/evalship-hq/tinyeval#readme)
 - [A C++ example repo](https://github.com/evalship-hq/cpp-llm-evals), and worker loops in 14 languages in [examples/workers](https://github.com/evalship-hq/tinyeval/tree/main/examples/workers)
+- Made by [evalship](https://evalship.com).

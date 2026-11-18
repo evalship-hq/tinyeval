@@ -111,3 +111,4 @@ mvn versions:use-latest-releases -Dincludes=com.evalship:tinyeval
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge and the options
 - Example repos with evals in CI: [java-llm-evals](https://github.com/evalship-hq/java-llm-evals), [kotlin-llm-evals](https://github.com/evalship-hq/kotlin-llm-evals) and [scala-llm-evals](https://github.com/evalship-hq/scala-llm-evals)
+- Made by [evalship](https://evalship.com).

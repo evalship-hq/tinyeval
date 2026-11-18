@@ -74,3 +74,4 @@ In an renv project, run `renv::snapshot()` after, so renv.lock moves too. `tinye
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge, and more
 - [evalship-hq/r-llm-evals](https://github.com/evalship-hq/r-llm-evals): an R support bot on httr2, with its evals in CI
+- Made by [evalship](https://evalship.com).

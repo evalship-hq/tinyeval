@@ -61,3 +61,4 @@ Or `pnpm add -D tinyeval-cli@latest`, `yarn up tinyeval-cli`, `bun add -d tinyev
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every grading line, the judge and the options
 - Example repos: [javascript-llm-evals](https://github.com/evalship-hq/javascript-llm-evals) and [typescript-llm-evals](https://github.com/evalship-hq/typescript-llm-evals)
+- Made by [evalship](https://evalship.com).

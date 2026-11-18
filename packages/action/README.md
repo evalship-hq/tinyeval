@@ -71,3 +71,4 @@ updates:
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge and the options
 - [Template repos](https://github.com/evalship-hq/tinyeval#quickstart): a support bot with its evals in CI, in your app's language
 - This action is built from `packages/action` in [evalship-hq/tinyeval](https://github.com/evalship-hq/tinyeval). Send issues and pull requests there.
+- Made by [evalship](https://evalship.com).

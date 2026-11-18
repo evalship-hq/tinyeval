@@ -82,3 +82,4 @@ luarocks install --tree lua_modules tinyeval
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge and the options
 - [evalship-hq/lua-llm-evals](https://github.com/evalship-hq/lua-llm-evals): a Lua support bot with its evals in CI
+- Made by [evalship](https://evalship.com).

@@ -93,3 +93,4 @@ Dependabot and Renovate see new versions of the package. A repo that commits its
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge and the options
 - [evalship-hq/swift-llm-evals](https://github.com/evalship-hq/swift-llm-evals): a Swift support bot with its evals in CI
 - This package is built from `packages/swift` in [evalship-hq/tinyeval](https://github.com/evalship-hq/tinyeval). Send issues and pull requests there.
+- Made by [evalship](https://evalship.com).

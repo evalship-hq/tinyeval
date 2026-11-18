@@ -68,3 +68,4 @@ Dependabot and Renovate see new versions in your `Gemfile.lock`. A repo that com
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge and the options
 - [evalship-hq/ruby-llm-evals](https://github.com/evalship-hq/ruby-llm-evals): a Ruby support bot with its evals in CI
+- Made by [evalship](https://evalship.com).

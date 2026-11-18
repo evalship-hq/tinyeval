@@ -78,3 +78,4 @@ Dependabot and Renovate see new versions in `mix.lock` and open the pull request
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every grading line, the judge and the options
 - [elixir-llm-evals](https://github.com/evalship-hq/elixir-llm-evals): a Req app with its evals
+- Made by [evalship](https://evalship.com).

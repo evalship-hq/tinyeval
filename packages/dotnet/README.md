@@ -82,3 +82,4 @@ The versions live in `.config/dotnet-tools.json` and your worker's `.csproj`, wh
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the model judge included.
 - [csharp-llm-evals](https://github.com/evalship-hq/csharp-llm-evals): a C# support bot whose evals run on every pull request.
+- Made by [evalship](https://evalship.com).

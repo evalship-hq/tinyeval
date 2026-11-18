@@ -69,3 +69,4 @@ The command needs bash 3.2 or later: macOS, Linux, or Git for Windows.
 - [tinyeval.com](https://tinyeval.com)
 - [Writing evals](https://github.com/evalship-hq/tinyeval#writing-evals): every check line, the judge, and more
 - [evalship-hq/rust-llm-evals](https://github.com/evalship-hq/rust-llm-evals): a Rust support bot with its evals in CI
+- Made by [evalship](https://evalship.com).
