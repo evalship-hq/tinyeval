@@ -68,6 +68,12 @@ ok "judge API: \"does not PASS\" is no pass" '[ $code -eq 1 ] && [[ $out == *"ju
 api '{"choices":[{"message":{"role":"assistant","content":"Verdict: **PASS**\nIt declines."}}]}'
 out=$(judge); code=$?
 ok "judge API: a labeled verdict passes" '[ $code -eq 0 ]'
+api '{"choices":[{"message":{"role":"assistant","content":"FAIL: \"It approves the refund.\""}}]}'
+out=$(judge); code=$?
+ok "judge API: a verdict before a colon fails with its reason" '[ $code -eq 1 ] && [[ $out == *"judge: It approves the refund."* ]]'
+api '{"choices":[{"message":{"role":"assistant","content":"PASS: it declines."}}]}'
+out=$(judge); code=$?
+ok "judge API: a verdict before a colon passes" '[ $code -eq 0 ]'
 
 export COUNTER="$tmp/counter"
 out=$(./tinyeval -n 3 -o "$tmp/flaky.json" test/fixtures/flaky.sh); code=$?
