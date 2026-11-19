@@ -2,7 +2,7 @@
 # tinyeval: evals for AI features, in one bash file. https://github.com/evalship-hq/tinyeval
 # Runs on bash 3.2 (macOS) and up with the tools every bash install has. judge also needs curl.
 
-_te_version=0.12.1
+_te_version=0.12.2
 _te_usage="Usage: tinyeval [-n runs] [-j jobs] [-t seconds] [-k text] [-o file] [-x file] [-e] [eval files...]
        tinyeval update
        tinyeval share [file]
@@ -295,7 +295,8 @@ $output
 Does the reply meet the criterion? Answer PASS or FAIL on the first line, then one sentence on why.") ||
     { _te_error "judge couldn't run: $reply"; return; }
   # The first word of the first line, after markdown or a label like "Verdict:", so "does not PASS" isn't a pass.
-  verdict=$(printf '%s\n' "$reply" | awk 'NF { sub(/^[^[:alnum:]]+/, ""); sub(/^[[:alpha:]]+:[^[:alnum:]]*/, "")
+  # A line that opens with the verdict keeps it: in "FAIL: it approves" the verdict is no label.
+  verdict=$(printf '%s\n' "$reply" | awk 'NF { sub(/^[^[:alnum:]]+/, ""); if ($0 !~ /^(PASS|FAIL)([^[:alnum:]]|$)/) sub(/^[[:alpha:]]+:[^[:alnum:]]*/, "")
     if ($0 ~ /^(PASS|FAIL)([^[:alnum:]]|$)/) print substr($0, 1, 4); exit }')
   reply=$(printf '%s' "$reply" | tr '\n' ' ' | sed -E 's/^[^A-Z]*(PASS|FAIL)[^[:alnum:]]*//' | cut -c 1-300)
   case $verdict in

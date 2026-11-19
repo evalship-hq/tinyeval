@@ -1,4 +1,5 @@
-# From packages/homebrew/tinyeval.rb in https://github.com/evalship-hq/tinyeval, with the tag's url and sha256. Edit it there.
+# From packages/homebrew/tinyeval.rb in https://github.com/evalship-hq/tinyeval, with the tag's url and sha256.
+# Edit it there.
 class Tinyeval < Formula
   desc "Evals for AI features, in one bash file"
   homepage "https://tinyeval.com"
